@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, DollarSign, Edit3, ImagePlus, Inbox, MapPin, Save, Star, Trash2, X } from "lucide-react";
 import { Button, LinkButton, Section, Stat } from "@/components/ui";
 import { dateLabel } from "@/lib/availability";
-import { deleteVendorProfile, getStoredAccount, saveVendorProfile, uploadVendorImageFiles } from "@/lib/account-service";
+import { deleteVendorProfile, friendlyAuthError, getStoredAccount, saveVendorProfile, uploadVendorImageFiles } from "@/lib/account-service";
 import { getBookingsForVendor } from "@/lib/bookings";
 import { citiesForState, formatLocation, locationStates } from "@/lib/location";
 import { venueSubcategories } from "@/lib/venue-subcategories";
@@ -32,6 +32,7 @@ export default function VendorDashboardPage() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
+  const [imageUploadMessage, setImageUploadMessage] = useState("");
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [quoteRequests, setQuoteRequests] = useState<QuoteRequest[]>([]);
   const [reviews, setReviews] = useState<VendorReview[]>([]);
@@ -227,7 +228,8 @@ export default function VendorDashboardPage() {
       .slice(0, remainingSlots);
     if (!selectedFiles.length) return;
 
-      setIsUploadingImages(true);
+    setIsUploadingImages(true);
+    setImageUploadMessage("");
     try {
       const account = getStoredAccount();
       const uploadedUrls = account ? await uploadVendorImageFiles(account.uid, selectedFiles, profile.id) : [];
@@ -239,8 +241,10 @@ export default function VendorDashboardPage() {
         ...profile,
         images: [...images, ...previewUrls].slice(0, 10),
       });
+      setImageUploadMessage(uploadedUrls.length ? "Images uploaded." : "Images added as local previews. Firebase upload is not active for this session.");
     } catch (error) {
       console.error("Vendor image upload failed:", error);
+      setImageUploadMessage(friendlyAuthError(error));
     } finally {
       setIsUploadingImages(false);
     }
@@ -489,6 +493,11 @@ export default function VendorDashboardPage() {
                 )}
                 </div>
                 <p className="mt-3 text-xs font-semibold text-charcoal/48">{images.length}/10 images added</p>
+                {imageUploadMessage && (
+                  <p className={`mt-2 text-xs font-semibold ${imageUploadMessage === "Images uploaded." ? "text-sage" : "text-rose"}`}>
+                    {imageUploadMessage}
+                  </p>
+                )}
               </div>
             </div>
           </div>

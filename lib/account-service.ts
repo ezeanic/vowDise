@@ -279,10 +279,19 @@ export async function loadBudget(uid: string): Promise<BudgetData | null> {
 
 export async function uploadVendorImageFiles(uid: string, files: File[], vendorId?: string) {
   if (!files.length) return [];
-  if (!isFirebaseConfigured || !storage || uid.startsWith("local-")) return [];
+  if (!isFirebaseConfigured || !storage || !db || uid.startsWith("local-")) return [];
 
   const activeStorage = storage;
   const targetVendorId = vendorId || uid;
+  await setDoc(
+    doc(db, "vendors", targetVendorId),
+    {
+      ownerUid: uid,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+
   const uploadedUrls = await Promise.all(
     files.map(async (file) => {
       const safeName = file.name.toLowerCase().replace(/[^a-z0-9.]+/g, "-");
