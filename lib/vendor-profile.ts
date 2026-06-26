@@ -2,7 +2,8 @@ import type { Vendor, VendorCategory, VendorReview } from "./types";
 import { categories, vendors } from "./vendors";
 import { FirebaseError } from "firebase/app";
 import { collection, doc, getDoc, getDocs, query, where, setDoc } from "firebase/firestore";
-import { auth, db, isFirebaseConfigured } from "./firebase";
+import { getDownloadURL, listAll, ref } from "firebase/storage";
+import { auth, db, isFirebaseConfigured, storage } from "./firebase";
 import { readableId } from "./readable-id";
 
 const fallbackImage = "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=80";
@@ -31,6 +32,18 @@ type StoredVendorProfile = {
 };
 
 type NormalizedVendorProfile = StoredVendorProfile & { id: string };
+
+async function getStorageGalleryImages(vendorId: string) {
+  if (!isFirebaseConfigured || !storage) return [];
+
+  try {
+    const galleryRef = ref(storage, `vendors/${vendorId}/gallery`);
+    const gallery = await listAll(galleryRef);
+    return await Promise.all(gallery.items.map((item) => getDownloadURL(item)));
+  } catch {
+    return [];
+  }
+}
 
 async function getRemoteReviewsForVendor(vendorId: string): Promise<VendorReview[]> {
   if (!isFirebaseConfigured || !db) return [];
@@ -214,10 +227,15 @@ export async function getRemoteMarketplaceVendors() {
       return map;
     }, new Map<string, { count: number; totalRating: number }>());
 
-    return vendorSnapshot.docs.map((docSnapshot) => {
+    return await Promise.all(vendorSnapshot.docs.map(async (docSnapshot) => {
+      const data = docSnapshot.data() as StoredVendorProfile;
+      const storedImages = (data.images ?? data.imageUrls)?.filter(Boolean) ?? [];
+      const galleryImages = storedImages.length ? storedImages : await getStorageGalleryImages(docSnapshot.id);
       const vendor = profileToVendor({
         id: docSnapshot.id,
-        ...docSnapshot.data(),
+        ...data,
+        images: galleryImages,
+        imageUrls: galleryImages,
       });
 
       const stats = reviewStats.get(vendor.id);
@@ -227,7 +245,7 @@ export async function getRemoteMarketplaceVendors() {
       }
 
       return vendor;
-    });
+    }));
   } catch {
     return [];
   }
@@ -246,9 +264,15 @@ export async function getVendorProfile(vendorId: string) {
     const snapshot = await getDoc(doc(db, "vendors", vendorId));
     if (!snapshot.exists()) return localProfile;
 
+    const data = snapshot.data() as StoredVendorProfile;
+    const storedImages = (data.images ?? data.imageUrls)?.filter(Boolean) ?? [];
+    const galleryImages = storedImages.length ? storedImages : await getStorageGalleryImages(snapshot.id);
+
     return normalizeProfile({
       id: snapshot.id,
-      ...snapshot.data(),
+      ...data,
+      images: galleryImages,
+      imageUrls: galleryImages,
     });
   } catch {
     return localProfile;
@@ -266,12 +290,18 @@ export async function getVendorProfilesForAccount(uid: string) {
       query(collection(db, "vendors"), where("ownerUid", "==", uid))
     );
 
-    return snapshot.docs.map((docSnapshot) =>
-      normalizeProfile({
+    return await Promise.all(snapshot.docs.map(async (docSnapshot) => {
+      const data = docSnapshot.data() as StoredVendorProfile;
+      const storedImages = (data.images ?? data.imageUrls)?.filter(Boolean) ?? [];
+      const galleryImages = storedImages.length ? storedImages : await getStorageGalleryImages(docSnapshot.id);
+
+      return normalizeProfile({
         id: docSnapshot.id,
-        ...docSnapshot.data(),
-      })
-    );
+        ...data,
+        images: galleryImages,
+        imageUrls: galleryImages,
+      });
+    }));
   } catch {
     return [];
   }

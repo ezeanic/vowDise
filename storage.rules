@@ -6,16 +6,36 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    match /vendors/{vendorId}/{allPaths=**} {
-      allow read: if true;
-      allow write: if signedIn() && (
+    function vendorOwner(vendorId) {
+      return signedIn() && (
         request.auth.uid == vendorId ||
         firestore.get(/databases/(default)/documents/vendors/$(vendorId)).data.ownerUid == request.auth.uid
       );
     }
 
+    function validImageUpload() {
+      return request.resource != null &&
+        request.resource.size < 10 * 1024 * 1024 &&
+        request.resource.contentType.matches("image/.*");
+    }
+
+    match /vendors/{vendorId}/gallery/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if vendorOwner(vendorId) && validImageUpload();
+      allow delete: if vendorOwner(vendorId);
+    }
+
+    match /vendors/{vendorId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /couples/{coupleId}/{allPaths=**} {
       allow read, write: if signedIn() && request.auth.uid == coupleId;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

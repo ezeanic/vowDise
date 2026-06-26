@@ -7,6 +7,7 @@ import { Button, LinkButton, Section, Stat } from "@/components/ui";
 import { dateLabel } from "@/lib/availability";
 import { deleteVendorProfile, friendlyAuthError, getStoredAccount, saveVendorProfile, uploadVendorImageFiles } from "@/lib/account-service";
 import { getBookingsForVendor } from "@/lib/bookings";
+import { optimizeVendorImageFile } from "@/lib/image-optimization";
 import { citiesForState, formatLocation, locationStates } from "@/lib/location";
 import { venueSubcategories } from "@/lib/venue-subcategories";
 import { getReviewsForVendor, getVendorProfile, getVendorProfilesForAccount } from "@/lib/vendor-profile";
@@ -232,18 +233,32 @@ export default function VendorDashboardPage() {
     setImageUploadMessage("");
     try {
       const account = getStoredAccount();
-      const uploadedUrls = account ? await uploadVendorImageFiles(account.uid, selectedFiles, profile.id) : [];
+      const optimizedResults = await Promise.allSettled(selectedFiles.map(optimizeVendorImageFile));
+      const optimizedFiles = optimizedResults
+        .filter((result): result is PromiseFulfilledResult<File> => result.status === "fulfilled")
+        .map((result) => result.value);
+      const skippedMessages = optimizedResults
+        .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+        .map((result) => friendlyAuthError(result.reason));
+
+      if (!optimizedFiles.length) {
+        setImageUploadMessage(skippedMessages[0] || "Choose a JPG, PNG, WebP, GIF, or SVG image.");
+        return;
+      }
+
+      const uploadedUrls = account ? await uploadVendorImageFiles(account.uid, optimizedFiles, profile.id) : [];
       const previewUrls = uploadedUrls.length
         ? uploadedUrls
-        : await Promise.all(selectedFiles.map(readFileAsDataUrl));
+        : await Promise.all(optimizedFiles.map(readFileAsDataUrl));
 
       await persistProfile({
         ...profile,
         images: [...images, ...previewUrls].slice(0, 10),
       });
-      setImageUploadMessage(uploadedUrls.length ? "Images uploaded." : "Images added as local previews. Firebase upload is not active for this session.");
+      const successMessage = uploadedUrls.length ? "Images optimized and uploaded." : "Optimized images added as local previews. Firebase upload is not active for this session.";
+      setImageUploadMessage(skippedMessages.length ? `${successMessage} ${skippedMessages.length} image${skippedMessages.length === 1 ? " was" : "s were"} skipped.` : successMessage);
     } catch (error) {
-      console.error("Vendor image upload failed:", error);
+      console.warn("Vendor image upload failed:", friendlyAuthError(error));
       setImageUploadMessage(friendlyAuthError(error));
     } finally {
       setIsUploadingImages(false);
@@ -494,7 +509,7 @@ export default function VendorDashboardPage() {
                 </div>
                 <p className="mt-3 text-xs font-semibold text-charcoal/48">{images.length}/10 images added</p>
                 {imageUploadMessage && (
-                  <p className={`mt-2 text-xs font-semibold ${imageUploadMessage === "Images uploaded." ? "text-sage" : "text-rose"}`}>
+                  <p className={`mt-2 text-xs font-semibold ${imageUploadMessage === "Images optimized and uploaded." ? "text-sage" : "text-rose"}`}>
                     {imageUploadMessage}
                   </p>
                 )}

@@ -47,6 +47,12 @@ function notifyAccountChanged() {
   window.dispatchEvent(new Event("vowdise-account-changed"));
 }
 
+function withoutUndefinedFields<T extends Record<string, unknown>>(values: T) {
+  return Object.fromEntries(
+    Object.entries(values).filter(([, value]) => value !== undefined),
+  ) as Partial<T>;
+}
+
 async function saveUserAccount(account: AccountRecord) {
   localStorage.setItem("vowdiseAccount", JSON.stringify(account));
   notifyAccountChanged();
@@ -328,7 +334,7 @@ export async function saveVendorProfile(uid: string, values: VendorProfile & { i
 
   const remoteImageUrls = profileValues.images.filter((image) => image.startsWith("http://") || image.startsWith("https://"));
 
-  await setDoc(doc(db, "vendors", profileId), {
+  await setDoc(doc(db, "vendors", profileId), withoutUndefinedFields({
     ...profileValues,
     images: remoteImageUrls,
     imageUrls: remoteImageUrls,
@@ -337,7 +343,7 @@ export async function saveVendorProfile(uid: string, values: VendorProfile & { i
     published: true,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
+  }));
 
   return profileId;
 }
