@@ -3,10 +3,17 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, Sparkles, DollarSign } from "lucide-react";
 import { useAccountGate } from "@/components/account-gate";
+import { LocationSearch } from "@/components/location-search";
 import { VendorCard } from "@/components/vendor-card";
 import { Section } from "@/components/ui";
 import { money } from "@/lib/budget";
-import { citiesForState, formatLocation, locationMatchesState, locationStates, milesBetween, coordinatesForLocation, parseLocation } from "@/lib/location";
+import {
+  coordinatesForValues,
+  milesBetween,
+  serviceRadiusMilesFor,
+  type Coordinates,
+  type LocationSelection,
+} from "@/lib/location";
 import type { Vendor, BudgetItem } from "@/lib/types";
 import { getMarketplaceVendorsWithRemote } from "@/lib/vendor-profile";
 import { loadBudget } from "@/lib/account-service";
@@ -21,29 +28,33 @@ const categoryAccent: Record<string, string> = {
 
 // Map budget categories to vendor categories
 const budgetToVendorCategory: Record<string, string[]> = {
-  "Venue": ["Venues"],
+  Venue: ["Venues"],
   "Food/catering": ["Caterers"],
-  "Photography": ["Photographers"],
-  "Videography": ["Videographers"],
+  Photography: ["Photographers"],
+  Videography: ["Videographers"],
   "DJ/music": ["DJs"],
-  "Florals": ["Florists"],
+  Florals: ["Florists"],
   "Dress/attire": [],
-  "Cake": ["Cake Vendors"],
-  "Transportation": [],
-  "Decor": [],
-  "Miscellaneous": ["Wedding Planners", "Makeup Artists"],
+  Cake: ["Cake Vendors"],
+  Transportation: [],
+  Decor: [],
+  Miscellaneous: ["Wedding Planners", "Makeup Artists"],
 };
 
 function BudgetVendorMatcher() {
   const [marketplaceVendors, setMarketplaceVendors] = useState<Vendor[]>([]);
   const [isLoadingVendors, setIsLoadingVendors] = useState(true);
-  const [budget, setBudget] = useState<{ total: number; items: BudgetItem[] } | null>(null);
+  const [budget, setBudget] = useState<{
+    total: number;
+    items: BudgetItem[];
+  } | null>(null);
   const [state, setState] = useState("");
   const [city, setCity] = useState("");
+  const [searchCoordinates, setSearchCoordinates] =
+    useState<Coordinates | null>(null);
   const [radius, setRadius] = useState(25);
   const { account, requireAccount, AccountGate } = useAccountGate();
-  const cityOptions = useMemo(() => citiesForState(state), [state]);
-  const searchLocation = formatLocation(city, state);
+  const searchLocation = [city, state].filter(Boolean).join(", ");
 
   useEffect(() => {
     let isMounted = true;
@@ -79,33 +90,65 @@ function BudgetVendorMatcher() {
   }, [account]);
 
   const filteredVendors = useMemo(() => {
-    const searchPoint = coordinatesForLocation(searchLocation) ?? coordinatesForLocation(city);
+    const searchPoint =
+      searchCoordinates ??
+      coordinatesForValues({ location: searchLocation }) ??
+      coordinatesForValues({ location: city });
     const hasCity = city.trim().length > 0;
 
     return marketplaceVendors.filter((vendor) => {
-      const vendorPoint = coordinatesForLocation(vendor.location);
-      const vendorCity = parseLocation(vendor.location).city.toLowerCase();
+      const vendorPoint = coordinatesForValues(vendor);
+      const vendorCity = (
+        vendor.city ||
+        vendor.location.split(",")[0] ||
+        ""
+      ).toLowerCase();
+      const vendorState = (vendor.state || vendor.location.split(",")[1] || "")
+        .trim()
+        .toLowerCase();
+      const distance =
+        searchPoint && vendorPoint
+          ? milesBetween(searchPoint, vendorPoint)
+          : null;
       const matchesLocation =
-        locationMatchesState(vendor.location, state) &&
+        (!state || vendorState === state.toLowerCase()) &&
         (!hasCity ||
-        (searchPoint && vendorPoint
-          ? milesBetween(searchPoint, vendorPoint) <= radius
-          : vendorCity.includes(city.trim().toLowerCase())));
+          (distance !== null
+            ? distance <= radius && distance <= serviceRadiusMilesFor(vendor)
+            : vendorCity.includes(city.trim().toLowerCase())));
 
       return matchesLocation;
     });
-  }, [marketplaceVendors, city, state, searchLocation, radius]);
+  }, [
+    marketplaceVendors,
+    city,
+    state,
+    searchLocation,
+    searchCoordinates,
+    radius,
+  ]);
+
+  function updateLocation(location: LocationSelection) {
+    setCity(location.city);
+    setState(location.state);
+    setSearchCoordinates(
+      location.lat !== undefined && location.lng !== undefined
+        ? { lat: location.lat, lng: location.lng }
+        : null,
+    );
+  }
 
   const budgetMatches = useMemo(() => {
     if (!budget) return [];
 
     return budget.items
-      .filter(item => budgetToVendorCategory[item.name]?.length > 0)
-      .map(budgetItem => {
+      .filter((item) => budgetToVendorCategory[item.name]?.length > 0)
+      .map((budgetItem) => {
         const vendorCategories = budgetToVendorCategory[budgetItem.name];
-        const matchingVendors = filteredVendors.filter(vendor =>
-          vendorCategories.includes(vendor.category) &&
-          vendor.startingPrice <= budgetItem.amount
+        const matchingVendors = filteredVendors.filter(
+          (vendor) =>
+            vendorCategories.includes(vendor.category) &&
+            vendor.startingPrice <= budgetItem.amount,
         );
 
         return {
@@ -116,14 +159,17 @@ function BudgetVendorMatcher() {
       });
   }, [budget, filteredVendors]);
 
-  const totalMatches = budgetMatches.reduce((sum, match) => sum + match.matchingVendors.length, 0);
+  const totalMatches = budgetMatches.reduce(
+    (sum, match) => sum + match.matchingVendors.length,
+    0,
+  );
 
   return (
     <main className="min-h-screen bg-[#fbf7ef] text-charcoal">
       <Section className="space-y-8 pb-20 pt-8 sm:pt-10">
         <a
           href="/budget"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-charcoal/60 hover:text-charcoal transition-colors"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-charcoal/60 transition-colors hover:text-charcoal"
         >
           <ArrowLeft size={16} />
           Back to budget
@@ -139,32 +185,48 @@ function BudgetVendorMatcher() {
                 <h1 className="mt-5 font-serif text-5xl font-semibold leading-[0.95] text-charcoal sm:text-6xl lg:text-7xl">
                   See what fits your budget.
                 </h1>
-                <p className="mt-6 max-w-xl text-base leading-8 text-charcoal/72">
-                  Enter your wedding location and we&apos;ll show you vendors that fit within each budget category. No more guessing what&apos;s available.
+                <p className="text-charcoal/72 mt-6 max-w-xl text-base leading-8">
+                  Enter your wedding location and we&apos;ll show you vendors
+                  that fit within each budget category. No more guessing
+                  what&apos;s available.
                 </p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="border-t border-champagne/60 pt-4">
-                  <p className="text-3xl font-semibold text-charcoal">{budget ? money(budget.total) : "---"}</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-charcoal/50">Your budget</p>
+                  <p className="text-3xl font-semibold text-charcoal">
+                    {budget ? money(budget.total) : "---"}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-charcoal/50">
+                    Your budget
+                  </p>
                 </div>
                 <div className="border-t border-champagne/60 pt-4">
-                  <p className="text-3xl font-semibold text-charcoal">{totalMatches}</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-charcoal/50">Matching vendors</p>
+                  <p className="text-3xl font-semibold text-charcoal">
+                    {totalMatches}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-charcoal/50">
+                    Matching vendors
+                  </p>
                 </div>
                 <div className="border-t border-champagne/60 pt-4">
-                  <p className="text-3xl font-semibold text-charcoal">{budgetMatches.filter(m => m.hasMatches).length}</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-charcoal/50">Categories covered</p>
+                  <p className="text-3xl font-semibold text-charcoal">
+                    {budgetMatches.filter((m) => m.hasMatches).length}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-charcoal/50">
+                    Categories covered
+                  </p>
                 </div>
               </div>
             </div>
 
-            <div className="relative min-h-[360px] overflow-hidden lg:min-h-full bg-gradient-to-br from-rose/10 to-gold/10">
+            <div className="relative min-h-[360px] overflow-hidden bg-gradient-to-br from-rose/10 to-gold/10 lg:min-h-full">
               <div className="absolute inset-0 flex items-center justify-center p-8">
                 <div className="text-center">
                   <DollarSign size={64} className="mx-auto text-charcoal/20" />
-                  <p className="mt-4 text-2xl font-semibold text-charcoal/40">Smart budget matching</p>
+                  <p className="mt-4 text-2xl font-semibold text-charcoal/40">
+                    Smart budget matching
+                  </p>
                 </div>
               </div>
             </div>
@@ -175,34 +237,20 @@ function BudgetVendorMatcher() {
         <div className="rounded-[8px] border border-champagne/50 bg-white px-5 py-5 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-6">
             <div className="flex-1">
-              <label className="block text-sm font-semibold text-charcoal/75">Your wedding location</label>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <select
-                  value={state}
-                  onChange={(event) => {
-                    setState(event.target.value);
-                    setCity("");
-                  }}
-                  className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 text-sm text-charcoal outline-none focus:border-rose focus:ring-2 focus:ring-rose/10"
-                >
-                  <option value="">All states</option>
-                  {locationStates.map((item) => <option key={item}>{item}</option>)}
-                </select>
-                <input
-                  value={city}
-                  onChange={(event) => setCity(event.target.value)}
-                  placeholder={state ? "Search city" : "Choose a state first"}
-                  list="budget-city-options"
-                  disabled={!state}
-                  className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 text-sm text-charcoal outline-none focus:border-rose focus:ring-2 focus:ring-rose/10 disabled:cursor-not-allowed disabled:opacity-60"
-                />
-                <datalist id="budget-city-options">
-                  {cityOptions.map((item) => <option key={item} value={item} />)}
-                </datalist>
-              </div>
+              <label className="block text-sm font-semibold text-charcoal/75">
+                Your wedding location
+              </label>
+              <LocationSearch
+                value={searchLocation}
+                onChange={updateLocation}
+                placeholder="San Jose, CA"
+                inputClassName="mt-3 w-full rounded-[8px] border border-champagne bg-ivory px-4 py-3 text-sm text-charcoal outline-none focus:border-rose focus:ring-2 focus:ring-rose/10"
+              />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-charcoal/75">Search radius</label>
+              <label className="block text-sm font-semibold text-charcoal/75">
+                Search radius
+              </label>
               <div className="mt-3 flex items-center gap-3">
                 <input
                   type="range"
@@ -213,7 +261,9 @@ function BudgetVendorMatcher() {
                   onChange={(event) => setRadius(Number(event.target.value))}
                   className="w-32 accent-rose"
                 />
-                <span className="text-sm font-semibold text-charcoal">{radius} miles</span>
+                <span className="text-sm font-semibold text-charcoal">
+                  {radius} miles
+                </span>
               </div>
             </div>
           </div>
@@ -221,11 +271,17 @@ function BudgetVendorMatcher() {
 
         {!budget ? (
           <div className="rounded-[8px] border border-champagne/35 bg-white p-8 text-center">
-            <p className="text-lg font-semibold text-charcoal">Set your budget first</p>
-            <p className="mt-2 text-charcoal/65">Create a wedding budget to see matching vendors in your area.</p>
+            <p className="text-lg font-semibold text-charcoal">
+              Set your budget first
+            </p>
+            <p className="mt-2 text-charcoal/65">
+              Create a wedding budget to see matching vendors in your area.
+            </p>
             <button
               type="button"
-              onClick={() => requireAccount(() => {}, "set your wedding budget")}
+              onClick={() =>
+                requireAccount(() => {}, "set your wedding budget")
+              }
               className="mt-4 inline-flex items-center gap-2 rounded-full bg-charcoal px-6 py-3 text-sm font-semibold text-white transition hover:bg-black"
             >
               Go to budget editor <ArrowRight size={16} />
@@ -238,44 +294,65 @@ function BudgetVendorMatcher() {
                 Loading budget-matched vendors...
               </div>
             )}
-            {budgetMatches.map(({ budgetItem, matchingVendors, hasMatches }) => (
-              <div key={budgetItem.name} className="rounded-[8px] border border-champagne/45 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-champagne/35 px-6 py-4">
-                  <div className="flex items-center gap-4">
-                    <div className={`rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] ${categoryAccent[budgetToVendorCategory[budgetItem.name]?.[0]] ?? 'bg-charcoal text-white'}`}>
-                      {budgetToVendorCategory[budgetItem.name]?.[0] || budgetItem.name}
+            {budgetMatches.map(
+              ({ budgetItem, matchingVendors, hasMatches }) => (
+                <div
+                  key={budgetItem.name}
+                  className="rounded-[8px] border border-champagne/45 bg-white shadow-sm"
+                >
+                  <div className="flex items-center justify-between border-b border-champagne/35 px-6 py-4">
+                    <div className="flex items-center gap-4">
+                      <div
+                        className={`rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] ${categoryAccent[budgetToVendorCategory[budgetItem.name]?.[0]] ?? "bg-charcoal text-white"}`}
+                      >
+                        {budgetToVendorCategory[budgetItem.name]?.[0] ||
+                          budgetItem.name}
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-charcoal">
+                          {budgetItem.name}
+                        </h3>
+                        <p className="text-sm text-charcoal/60">
+                          Budget: {money(budgetItem.amount)}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-charcoal">{budgetItem.name}</h3>
-                      <p className="text-sm text-charcoal/60">Budget: {money(budgetItem.amount)}</p>
+                    <div className="text-right">
+                      <p className="text-2xl font-semibold text-charcoal">
+                        {matchingVendors.length}
+                      </p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-charcoal/50">
+                        Vendors in range
+                      </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-semibold text-charcoal">{matchingVendors.length}</p>
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-charcoal/50">Vendors in range</p>
-                  </div>
-                </div>
 
-                <div className="p-6">
-                  {hasMatches ? (
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      {matchingVendors.slice(0, 6).map((vendor) => (
-                        <VendorCard
-                          key={vendor.id}
-                          vendor={vendor}
-                          href={`/vendors/${vendor.id}?returnTo=${encodeURIComponent("/budget/vendors")}&returnLabel=${encodeURIComponent("Back to budget matches")}`}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="rounded-lg bg-ivory p-6 text-center">
-                      <p className="font-semibold text-charcoal">No vendors match this budget in your area</p>
-                      <p className="mt-1 text-sm text-charcoal/60">Try expanding your search radius or adjusting your budget allocation.</p>
-                    </div>
-                  )}
+                  <div className="p-6">
+                    {hasMatches ? (
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {matchingVendors.slice(0, 6).map((vendor) => (
+                          <VendorCard
+                            key={vendor.id}
+                            vendor={vendor}
+                            href={`/vendors/${vendor.id}?returnTo=${encodeURIComponent("/budget/vendors")}&returnLabel=${encodeURIComponent("Back to budget matches")}`}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-lg bg-ivory p-6 text-center">
+                        <p className="font-semibold text-charcoal">
+                          No vendors match this budget in your area
+                        </p>
+                        <p className="mt-1 text-sm text-charcoal/60">
+                          Try expanding your search radius or adjusting your
+                          budget allocation.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ),
+            )}
           </div>
         )}
       </Section>

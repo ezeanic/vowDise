@@ -16,17 +16,32 @@ export type VendorProfile = {
   category?: string;
   venueSubcategory?: string;
   location?: string;
+  formattedLocation?: string;
+  city?: string;
+  state?: string;
   locationState?: string;
   locationCity?: string;
+  lat?: number;
+  lng?: number;
   startingPrice?: string;
+  contactEmail?: string;
+  email?: string;
   description?: string;
   availabilityStatus?: string;
   serviceRadius?: string;
+  serviceRadiusMiles?: number;
   bookingLeadTime?: string;
   availabilityNotes?: string;
   images?: string[];
+  packages?: VendorPackage[];
   blockedDates?: string[];
   pendingRequestDates?: string[];
+};
+
+export type VendorPackage = {
+  name: string;
+  price: number;
+  includes: string;
 };
 
 export type Vendor = {
@@ -35,7 +50,15 @@ export type Vendor = {
   category: VendorCategory;
   venueSubcategory?: VenueSubcategory | string;
   location: string;
+  formattedLocation?: string;
+  city?: string;
+  state?: string;
+  lat?: number;
+  lng?: number;
+  serviceRadiusMiles?: number;
   startingPrice: number;
+  contactEmail?: string;
+  email?: string;
   rating: number;
   reviewCount: number;
   availability: "High" | "Limited" | "Waitlist";
@@ -44,7 +67,7 @@ export type Vendor = {
   image: string;
   gallery: string[];
   description: string;
-  packages: { name: string; price: number; includes: string }[];
+  packages: VendorPackage[];
   reviews: VendorReview[];
   budgetFit: "Great fit" | "Stretch" | "Premium";
   isRealVendor?: boolean;
@@ -74,7 +97,13 @@ export type BudgetData = {
   items: BudgetItem[];
 };
 
-export type BookingStatus = "saved" | "inquired" | "quoted" | "booked" | "contract_signed" | "paid";
+export type BookingStatus =
+  | "saved"
+  | "inquired"
+  | "quoted"
+  | "booked"
+  | "contract_signed"
+  | "paid";
 
 export type VendorBooking = {
   id: string;
@@ -114,6 +143,7 @@ export type Conversation = {
   lastMessage?: string;
   lastMessageTime?: string;
   unreadCount: number;
+  unreadFor?: "couple" | "vendor" | null;
   createdAt: string;
   updatedAt: string;
 };

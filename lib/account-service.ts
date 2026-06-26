@@ -1,12 +1,19 @@
 import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
+  fetchSignInMethodsForEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
 } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
-import { deleteDoc, doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import {
+  deleteDoc,
+  doc,
+  getDoc,
+  serverTimestamp,
+  setDoc,
+} from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { auth, db, isFirebaseConfigured, storage } from "./firebase";
 import { hasVendorProfile } from "./vendor-profile";
@@ -34,6 +41,13 @@ export type AccountRecord = {
   email: string;
   roles: UserRoles;
 };
+
+class AuthMethodError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthMethodError";
+  }
+}
 
 function rolesForCapability(capability: UserCapability): UserRoles {
   return {
@@ -77,7 +91,10 @@ async function saveUserAccount(account: AccountRecord) {
   );
 }
 
-export async function updateAccountProfile(account: AccountRecord, values: { name?: string }) {
+export async function updateAccountProfile(
+  account: AccountRecord,
+  values: { name?: string },
+) {
   const nextAccount: AccountRecord = {
     ...account,
     name: values.name?.trim() || account.name,
@@ -92,7 +109,9 @@ async function rolesForSignedInUser(uid: string, capability: UserCapability) {
   if (!isFirebaseConfigured || !db) return fallbackRoles;
 
   const snapshot = await getDoc(doc(db, "users", uid));
-  const storedRoles = snapshot.exists() ? (snapshot.data().roles as Partial<UserRoles> | undefined) : undefined;
+  const storedRoles = snapshot.exists()
+    ? (snapshot.data().roles as Partial<UserRoles> | undefined)
+    : undefined;
 
   return {
     couple: true,
@@ -141,10 +160,18 @@ export async function createAccount(input: AccountInput) {
     throw new Error("Firebase is required to create accounts.");
   }
 
-  const credential = await createUserWithEmailAndPassword(auth, input.email, input.password || "");
+  const credential = await createUserWithEmailAndPassword(
+    auth,
+    input.email,
+    input.password || "",
+  );
   const account: AccountRecord = {
     uid: credential.user.uid,
-    name: input.name?.trim() || credential.user.displayName || credential.user.email?.split("@")[0] || "Vowdise user",
+    name:
+      input.name?.trim() ||
+      credential.user.displayName ||
+      credential.user.email?.split("@")[0] ||
+      "Vowdise user",
     email: input.email,
     roles: rolesForCapability(input.capability),
   };
@@ -153,7 +180,10 @@ export async function createAccount(input: AccountInput) {
   return account;
 }
 
-export async function addAccountCapability(account: AccountRecord, capability: UserCapability) {
+export async function addAccountCapability(
+  account: AccountRecord,
+  capability: UserCapability,
+) {
   const nextAccount = {
     ...account,
     roles: {
@@ -172,15 +202,52 @@ export async function signInWithPassword(input: AccountInput) {
     throw new Error("Firebase is required to sign in.");
   }
 
-  const credential = await signInWithEmailAndPassword(auth, input.email, input.password || "");
-  
+  let credential;
+  try {
+    credential = await signInWithEmailAndPassword(
+      auth,
+      input.email,
+      input.password || "",
+    );
+  } catch (error) {
+    if (
+      error instanceof FirebaseError &&
+      error.code === "auth/invalid-credential"
+    ) {
+      const methods = await fetchSignInMethodsForEmail(auth, input.email);
+
+      if (methods.includes("google.com")) {
+        throw new AuthMethodError(
+          "This email was registered with Google. Please continue with Google.",
+        );
+      }
+
+      if (methods.includes("password")) {
+        throw new AuthMethodError(
+          "That password is not correct. Try again or reset your password.",
+        );
+      }
+
+      throw new AuthMethodError(
+        "Try signing in with Google, or reset your password.",
+      );
+    }
+
+    throw error;
+  }
+
   // Try to get the stored account name first
   const stored = getStoredAccount();
   const storedName = stored?.uid === credential.user.uid ? stored.name : null;
-  
+
   const account = {
     uid: credential.user.uid,
-    name: storedName || input.name || credential.user.displayName || credential.user.email?.split("@")[0] || "Vowdise user",
+    name:
+      storedName ||
+      input.name ||
+      credential.user.displayName ||
+      credential.user.email?.split("@")[0] ||
+      "Vowdise user",
     email: credential.user.email || input.email,
     roles: await rolesForSignedInUser(credential.user.uid, input.capability),
   };
@@ -191,21 +258,30 @@ export async function signInWithPassword(input: AccountInput) {
 
 export function friendlyAuthError(error: unknown) {
   if (!(error instanceof FirebaseError)) {
-    return error instanceof Error ? error.message : "Something went wrong. Please try again.";
+    return error instanceof Error
+      ? error.message
+      : "Something went wrong. Please try again.";
   }
 
   const messages: Record<string, string> = {
-    "auth/email-already-in-use": "That email already has an account. Sign in with the existing password or use Google.",
-    "auth/invalid-credential": "That email or password does not match an existing account.",
+    "auth/email-already-in-use":
+      "That email already has an account. Sign in with the existing password or use Google.",
+    "auth/invalid-credential":
+      "That email or password does not match an existing account.",
     "auth/wrong-password": "That password is not correct.",
     "auth/user-not-found": "No account exists for that email yet.",
     "auth/weak-password": "Use a password with at least 6 characters.",
     "auth/invalid-email": "Enter a valid email address.",
-    "auth/popup-closed-by-user": "Google sign-in was closed before it finished.",
-    "auth/unauthorized-domain": "This domain is not authorized in Firebase Authentication settings.",
-    "storage/unauthorized": "Image upload is blocked by Firebase Storage rules. Check that Storage is enabled and rules are deployed.",
-    "storage/quota-exceeded": "Firebase Storage quota was exceeded. Try smaller images or check the Firebase billing/quota settings.",
-    "storage/retry-limit-exceeded": "Image upload timed out. Try again with fewer or smaller images.",
+    "auth/popup-closed-by-user":
+      "Google sign-in was closed before it finished.",
+    "auth/unauthorized-domain":
+      "This domain is not authorized in Firebase Authentication settings.",
+    "storage/unauthorized":
+      "Image upload is blocked by Firebase Storage rules. Check that Storage is enabled and rules are deployed.",
+    "storage/quota-exceeded":
+      "Firebase Storage quota was exceeded. Try smaller images or check the Firebase billing/quota settings.",
+    "storage/retry-limit-exceeded":
+      "Image upload timed out. Try again with fewer or smaller images.",
   };
 
   return messages[error.code] || error.message;
@@ -220,7 +296,10 @@ export async function signInWithGoogle(capability: UserCapability) {
   const credential = await signInWithPopup(auth, provider);
   const account = {
     uid: credential.user.uid,
-    name: credential.user.displayName || credential.user.email?.split("@")[0] || "Vowdise user",
+    name:
+      credential.user.displayName ||
+      credential.user.email?.split("@")[0] ||
+      "Vowdise user",
     email: credential.user.email || "",
     roles: await rolesForSignedInUser(credential.user.uid, capability),
   };
@@ -229,7 +308,10 @@ export async function signInWithGoogle(capability: UserCapability) {
   return account;
 }
 
-export async function saveCoupleProfile(uid: string, values: Record<string, string>) {
+export async function saveCoupleProfile(
+  uid: string,
+  values: Record<string, string>,
+) {
   localStorage.setItem("weddingPlan", JSON.stringify(values));
 
   if (!isFirebaseConfigured || !db || uid.startsWith("local-")) return;
@@ -283,9 +365,14 @@ export async function loadBudget(uid: string): Promise<BudgetData | null> {
   return budgetData;
 }
 
-export async function uploadVendorImageFiles(uid: string, files: File[], vendorId?: string) {
+export async function uploadVendorImageFiles(
+  uid: string,
+  files: File[],
+  vendorId?: string,
+) {
   if (!files.length) return [];
-  if (!isFirebaseConfigured || !storage || !db || uid.startsWith("local-")) return [];
+  if (!isFirebaseConfigured || !storage || !db || uid.startsWith("local-"))
+    return [];
 
   const activeStorage = storage;
   const targetVendorId = vendorId || uid;
@@ -301,9 +388,17 @@ export async function uploadVendorImageFiles(uid: string, files: File[], vendorI
   const uploadedUrls = await Promise.all(
     files.map(async (file) => {
       const safeName = file.name.toLowerCase().replace(/[^a-z0-9.]+/g, "-");
-      const readableFileId = readableId(safeName.replace(/\.[^.]+$/, ""), "image");
-      const imageRef = ref(activeStorage, `vendors/${targetVendorId}/gallery/${readableFileId}-${safeName}`);
-      const snapshot = await uploadBytes(imageRef, file, { contentType: file.type });
+      const readableFileId = readableId(
+        safeName.replace(/\.[^.]+$/, ""),
+        "image",
+      );
+      const imageRef = ref(
+        activeStorage,
+        `vendors/${targetVendorId}/gallery/${readableFileId}-${safeName}`,
+      );
+      const snapshot = await uploadBytes(imageRef, file, {
+        contentType: file.type,
+      });
       return getDownloadURL(snapshot.ref);
     }),
   );
@@ -311,11 +406,22 @@ export async function uploadVendorImageFiles(uid: string, files: File[], vendorI
   return uploadedUrls;
 }
 
-export async function saveVendorProfile(uid: string, values: VendorProfile & { images: string[] }, vendorId?: string) {
-  const isRemoteSave = Boolean(isFirebaseConfigured && db && !uid.startsWith("local-"));
-  const profileId = vendorId || (isRemoteSave ? readableId(values.businessName || "business", "business") : uid);
+export async function saveVendorProfile(
+  uid: string,
+  values: VendorProfile & { images: string[] },
+  vendorId?: string,
+) {
+  const isRemoteSave = Boolean(
+    isFirebaseConfigured && db && !uid.startsWith("local-"),
+  );
+  const profileId =
+    vendorId ||
+    (isRemoteSave
+      ? readableId(values.businessName || "business", "business")
+      : uid);
   const profileValues = { ...values };
-  delete (profileValues as VendorProfile & { images: string[]; id?: string }).id;
+  delete (profileValues as VendorProfile & { images: string[]; id?: string })
+    .id;
   const localValues = {
     id: profileId,
     ...profileValues,
@@ -325,25 +431,33 @@ export async function saveVendorProfile(uid: string, values: VendorProfile & { i
     published: true,
   };
 
-  localStorage.setItem(`vowdiseVendorProfile:${localValues.id}`, JSON.stringify(localValues));
+  localStorage.setItem(
+    `vowdiseVendorProfile:${localValues.id}`,
+    JSON.stringify(localValues),
+  );
   window.dispatchEvent(new Event("vowdise-vendor-profile-changed"));
 
   if (!isFirebaseConfigured || !db || uid.startsWith("local-")) {
     return localValues.id;
   }
 
-  const remoteImageUrls = profileValues.images.filter((image) => image.startsWith("http://") || image.startsWith("https://"));
+  const remoteImageUrls = profileValues.images.filter(
+    (image) => image.startsWith("http://") || image.startsWith("https://"),
+  );
 
-  await setDoc(doc(db, "vendors", profileId), withoutUndefinedFields({
-    ...profileValues,
-    images: remoteImageUrls,
-    imageUrls: remoteImageUrls,
-    localImageCount: profileValues.images.length - remoteImageUrls.length,
-    ownerUid: uid,
-    published: true,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  }));
+  await setDoc(
+    doc(db, "vendors", profileId),
+    withoutUndefinedFields({
+      ...profileValues,
+      images: remoteImageUrls,
+      imageUrls: remoteImageUrls,
+      localImageCount: profileValues.images.length - remoteImageUrls.length,
+      ownerUid: uid,
+      published: true,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }),
+  );
 
   return profileId;
 }

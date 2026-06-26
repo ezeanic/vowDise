@@ -30,10 +30,12 @@ function MessagesContent() {
   const vendorBusinessName = searchParams.get("vendorBusinessName");
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
+  const [activeConversation, setActiveConversation] =
+    useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [coupleDisplayName, setCoupleDisplayName] = useState("");
-  const [hasLoadedCoupleDisplayName, setHasLoadedCoupleDisplayName] = useState(false);
+  const [hasLoadedCoupleDisplayName, setHasLoadedCoupleDisplayName] =
+    useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const { account, AccountGate } = useAccountGate();
   const startingVendorConversationRef = useRef<string | null>(null);
@@ -42,8 +44,14 @@ function MessagesContent() {
     const messagesById = new Map<string, ChatMessage>();
     for (const message of nextMessages) messagesById.set(message.id, message);
     return Array.from(messagesById.values()).sort(
-      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      (a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
     );
+  }
+
+  function shouldShowUnread(conv: Conversation) {
+    const role = account?.roles.vendor ? "vendor" : "couple";
+    return conv.unreadCount > 0 && (!conv.unreadFor || conv.unreadFor === role);
   }
 
   useEffect(() => {
@@ -59,7 +67,9 @@ function MessagesContent() {
       setCoupleDisplayName(account.name);
       setHasLoadedCoupleDisplayName(false);
       void getUserProfile(account.uid).then((profile) => {
-        setCoupleDisplayName(formatCoupleName(profile?.name || account.name, profile?.spouseName));
+        setCoupleDisplayName(
+          formatCoupleName(profile?.name || account.name, profile?.spouseName),
+        );
         setHasLoadedCoupleDisplayName(true);
       });
     } else {
@@ -74,7 +84,7 @@ function MessagesContent() {
         setConversations(userConversations);
         setIsLoading(false);
       },
-      account.roles.vendor ? vendorProfileId || undefined : undefined
+      account.roles.vendor ? vendorProfileId || undefined : undefined,
     );
   }, [account, vendorProfileId]);
 
@@ -83,7 +93,9 @@ function MessagesContent() {
       if (!account) return;
 
       if (conversationId) {
-        let conv: Conversation | null | undefined = conversations.find((c) => c.id === conversationId);
+        let conv: Conversation | null | undefined = conversations.find(
+          (c) => c.id === conversationId,
+        );
         if (!conv) {
           conv = await getConversation(conversationId);
         }
@@ -93,10 +105,17 @@ function MessagesContent() {
           setMessages(convMessages);
           await markMessagesAsRead(conversationId, account.uid);
         }
-      } else if (vendorId && vendorName && account.roles.couple && vendorId !== account.uid && vendorOwnerUid !== account.uid) {
+      } else if (
+        vendorId &&
+        vendorName &&
+        account.roles.couple &&
+        vendorId !== account.uid &&
+        vendorOwnerUid !== account.uid
+      ) {
         if (!hasLoadedCoupleDisplayName) return;
         const vendorConversationKey = `${account.uid}:${vendorId}`;
-        if (startingVendorConversationRef.current === vendorConversationKey) return;
+        if (startingVendorConversationRef.current === vendorConversationKey)
+          return;
         startingVendorConversationRef.current = vendorConversationKey;
 
         // Start or reuse an existing conversation with vendor.
@@ -106,7 +125,7 @@ function MessagesContent() {
           vendorId,
           vendorName,
           vendorBusinessName || undefined,
-          vendorOwnerUid || undefined
+          vendorOwnerUid || undefined,
         );
         setActiveConversation(newConv);
         setConversations((prev) => {
@@ -119,21 +138,39 @@ function MessagesContent() {
         const convMessages = await getMessages(newConv.id);
         setMessages(convMessages);
         await markMessagesAsRead(newConv.id, account.uid);
-        router.replace(`/messages?conversation=${encodeURIComponent(newConv.id)}`, { scroll: false });
+        router.replace(
+          `/messages?conversation=${encodeURIComponent(newConv.id)}`,
+          { scroll: false },
+        );
       } else {
         setActiveConversation(null);
         setMessages([]);
       }
     }
     loadConversation();
-  }, [conversationId, vendorId, vendorOwnerUid, vendorName, vendorBusinessName, conversations, account, coupleDisplayName, hasLoadedCoupleDisplayName, router]);
+  }, [
+    conversationId,
+    vendorId,
+    vendorOwnerUid,
+    vendorName,
+    vendorBusinessName,
+    conversations,
+    account,
+    coupleDisplayName,
+    hasLoadedCoupleDisplayName,
+    router,
+  ]);
 
   useEffect(() => {
     if (!activeConversation || !account) return;
 
     return subscribeToMessages(activeConversation.id, (nextMessages) => {
       setMessages(dedupeMessagesById(nextMessages));
-      if (nextMessages.some((message) => message.senderId !== account.uid && !message.read)) {
+      if (
+        nextMessages.some(
+          (message) => message.senderId !== account.uid && !message.read,
+        )
+      ) {
         void markMessagesAsRead(activeConversation.id, account.uid);
       }
     });
@@ -147,7 +184,7 @@ function MessagesContent() {
       account.uid,
       account.roles.couple ? coupleDisplayName || account.name : account.name,
       account.roles.vendor ? "vendor" : "couple",
-      content
+      content,
     );
 
     setMessages((prev) => dedupeMessagesById([...prev, newMessage]));
@@ -156,15 +193,22 @@ function MessagesContent() {
     setConversations((prev) =>
       prev.map((c) =>
         c.id === activeConversation.id
-          ? { ...c, lastMessage: content, lastMessageTime: newMessage.timestamp, updatedAt: newMessage.timestamp }
-          : c
-      )
+          ? {
+              ...c,
+              lastMessage: content,
+              lastMessageTime: newMessage.timestamp,
+              updatedAt: newMessage.timestamp,
+            }
+          : c,
+      ),
     );
   }
 
   function handleSelectConversation(conv: Conversation) {
     setActiveConversation(conv);
-    router.replace(`/messages?conversation=${encodeURIComponent(conv.id)}`, { scroll: false });
+    router.replace(`/messages?conversation=${encodeURIComponent(conv.id)}`, {
+      scroll: false,
+    });
   }
 
   return (
@@ -178,61 +222,81 @@ function MessagesContent() {
             <ArrowLeft size={18} />
           </button>
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.18em] text-rose">Messages</p>
-            <h1 className="mt-2 font-serif text-5xl font-semibold">Your conversations</h1>
+            <p className="text-sm font-bold uppercase tracking-[0.18em] text-rose">
+              Messages
+            </p>
+            <h1 className="mt-2 font-serif text-5xl font-semibold">
+              Your conversations
+            </h1>
           </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[350px_1fr]">
           {/* Conversation List */}
-          <div className="rounded-xl border border-champagne/30 bg-white shadow-sm overflow-hidden">
+          <div className="overflow-hidden rounded-xl border border-champagne/30 bg-white shadow-sm">
             <div className="border-b border-champagne/30 p-4">
               <h2 className="font-semibold text-charcoal">
-                {account?.roles.vendor && vendorProfileId ? "Business conversations" : "All conversations"}
+                {account?.roles.vendor && vendorProfileId
+                  ? "Business conversations"
+                  : "All conversations"}
               </h2>
             </div>
             <div className="max-h-[600px] overflow-y-auto">
               {isLoading ? (
-                <div className="p-4 text-center text-sm text-charcoal/60">Loading conversations...</div>
+                <div className="p-4 text-center text-sm text-charcoal/60">
+                  Loading conversations...
+                </div>
               ) : conversations.length === 0 ? (
                 <div className="p-8 text-center">
-                  <p className="font-semibold text-charcoal">No conversations yet</p>
-                  <p className="mt-2 text-sm text-charcoal/60">Start chatting with vendors from their profiles.</p>
+                  <p className="font-semibold text-charcoal">
+                    No conversations yet
+                  </p>
+                  <p className="mt-2 text-sm text-charcoal/60">
+                    Start chatting with vendors from their profiles.
+                  </p>
                 </div>
               ) : (
                 conversations.map((conv) => {
                   const isActive = activeConversation?.id === conv.id;
                   const isVendor = account?.roles.vendor;
-                  const displayName = isVendor ? conv.coupleName : conv.vendorBusinessName || conv.vendorName;
+                  const displayName = isVendor
+                    ? conv.coupleName
+                    : conv.vendorBusinessName || conv.vendorName;
 
                   return (
                     <button
                       key={conv.id}
                       onClick={() => handleSelectConversation(conv)}
                       className={`w-full border-b border-champagne/20 p-4 text-left transition hover:bg-ivory ${
-                        isActive ? "bg-ivory border-l-4 border-l-gold" : "border-l-4 border-l-transparent"
+                        isActive
+                          ? "border-l-4 border-l-gold bg-ivory"
+                          : "border-l-4 border-l-transparent"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             {isVendor ? (
                               <Users size={16} className="text-charcoal/40" />
                             ) : (
                               <Store size={16} className="text-charcoal/40" />
                             )}
-                            <p className="font-semibold text-charcoal truncate">{displayName}</p>
+                            <p className="truncate font-semibold text-charcoal">
+                              {displayName}
+                            </p>
                           </div>
                           {isVendor && conv.vendorBusinessName && (
-                            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-charcoal/40 truncate">
+                            <p className="mt-1 truncate text-xs font-semibold uppercase tracking-[0.12em] text-charcoal/40">
                               {conv.vendorBusinessName}
                             </p>
                           )}
                           {conv.lastMessage && (
-                            <p className="mt-1 text-sm text-charcoal/60 truncate">{conv.lastMessage}</p>
+                            <p className="mt-1 truncate text-sm text-charcoal/60">
+                              {conv.lastMessage}
+                            </p>
                           )}
                         </div>
-                        {conv.unreadCount > 0 && (
+                        {shouldShowUnread(conv) && (
                           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-rose text-xs font-semibold text-white">
                             {conv.unreadCount}
                           </span>
@@ -246,7 +310,7 @@ function MessagesContent() {
           </div>
 
           {/* Chat Window */}
-          <div className="rounded-xl border border-champagne/30 bg-white shadow-sm overflow-hidden">
+          <div className="overflow-hidden rounded-xl border border-champagne/30 bg-white shadow-sm">
             {activeConversation ? (
               <>
                 <div className="border-b border-champagne/30 p-4">
@@ -254,23 +318,31 @@ function MessagesContent() {
                     <h2 className="font-semibold text-charcoal">
                       {account?.roles.vendor
                         ? activeConversation.coupleName
-                        : activeConversation.vendorBusinessName || activeConversation.vendorName}
+                        : activeConversation.vendorBusinessName ||
+                          activeConversation.vendorName}
                     </h2>
                     <p className="text-sm text-charcoal/60">
                       {account?.roles.vendor ? "Couple" : "Vendor"}
                     </p>
                   </div>
                 </div>
-                <div className="h-[500px] flex flex-col">
-                  <ChatMessageList messages={messages} currentUserId={account?.uid || ""} />
+                <div className="flex h-[500px] flex-col">
+                  <ChatMessageList
+                    messages={messages}
+                    currentUserId={account?.uid || ""}
+                  />
                   <ChatInput onSend={handleSendMessage} disabled={!account} />
                 </div>
               </>
             ) : (
-              <div className="h-[500px] flex items-center justify-center">
+              <div className="flex h-[500px] items-center justify-center">
                 <div className="text-center">
-                  <p className="font-semibold text-charcoal">Select a conversation</p>
-                  <p className="mt-2 text-sm text-charcoal/60">Choose a conversation from the list to start chatting.</p>
+                  <p className="font-semibold text-charcoal">
+                    Select a conversation
+                  </p>
+                  <p className="mt-2 text-sm text-charcoal/60">
+                    Choose a conversation from the list to start chatting.
+                  </p>
                 </div>
               </div>
             )}

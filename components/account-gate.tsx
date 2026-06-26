@@ -24,7 +24,9 @@ type AccountAction = {
 export function useAccountGate() {
   const [account, setAccount] = useState<AccountRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [pendingAction, setPendingAction] = useState<AccountAction | null>(null);
+  const [pendingAction, setPendingAction] = useState<AccountAction | null>(
+    null,
+  );
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -71,7 +73,11 @@ export function useAccountGate() {
     });
   }, []);
 
-  function requireAccount(action: (account: AccountRecord) => void, label: string, capability: UserCapability = "couple") {
+  function requireAccount(
+    action: (account: AccountRecord) => void,
+    label: string,
+    capability: UserCapability = "couple",
+  ) {
     if (account?.roles[capability]) {
       action(account);
       return;
@@ -148,24 +154,34 @@ export function useAccountGate() {
 
     return (
       <div className="fixed inset-0 z-50 grid place-items-center bg-charcoal/45 p-4 backdrop-blur-sm">
-        <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-[8px] bg-ivory p-6 shadow-soft">
+        <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[8px] bg-ivory p-6 shadow-soft">
           <div className="flex items-start justify-between gap-4">
             <div>
               <span className="grid h-11 w-11 place-items-center rounded-full bg-charcoal text-white">
                 <LockKeyhole size={19} />
               </span>
-              <p className="mt-5 text-xs font-bold uppercase tracking-[0.18em] text-rose">Account required</p>
+              <p className="mt-5 text-xs font-bold uppercase tracking-[0.18em] text-rose">
+                Account required
+              </p>
               <h2 className="mt-1 font-serif text-3xl font-semibold">
-                {isSignIn ? "Sign in to your account" : (currentAction.capability === "vendor" ? "Add vendor tools to your account" : "Create your free wedding account")}
+                {isSignIn
+                  ? "Sign in to your account"
+                  : currentAction.capability === "vendor"
+                    ? "Add vendor tools to your account"
+                    : "Create your free wedding account"}
               </h2>
-              <p className="mt-3 text-sm leading-6 text-charcoal/68">
+              <p className="text-charcoal/68 mt-3 text-sm leading-6">
                 Use one Vowdise account to {currentAction.label}.{" "}
                 {currentAction.capability === "vendor"
                   ? "This keeps leads, availability, packages, and profile updates attached to your business."
                   : "This keeps vendor quotes, saved picks, and budget decisions attached to your wedding plan."}
               </p>
             </div>
-            <button className="rounded-full p-2 hover:bg-white" onClick={closeGate} aria-label="Close account form">
+            <button
+              className="rounded-full p-2 hover:bg-white"
+              onClick={closeGate}
+              aria-label="Close account form"
+            >
               <X size={20} />
             </button>
           </div>
@@ -188,7 +204,11 @@ export function useAccountGate() {
                   className="rounded-[8px] border border-champagne bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30"
                 />
                 <Button type="submit">Sign in and continue</Button>
-                {message && <p className="rounded-[8px] bg-rose/10 p-3 text-sm font-semibold text-rose">{message}</p>}
+                {message && (
+                  <p className="rounded-[8px] bg-rose/10 p-3 text-sm font-semibold text-rose">
+                    {message}
+                  </p>
+                )}
               </form>
 
               <div className="my-5 flex items-center gap-3 text-xs font-bold uppercase tracking-[0.16em] text-charcoal/40">
@@ -197,13 +217,22 @@ export function useAccountGate() {
                 <span className="h-px flex-1 bg-champagne" />
               </div>
 
-              <Button className="w-full" type="button" variant="secondary" onClick={handleGoogle}>
+              <Button
+                className="w-full"
+                type="button"
+                variant="secondary"
+                onClick={handleGoogle}
+              >
                 Continue with Google
               </Button>
 
               <p className="mt-5 text-center text-sm">
                 Don&apos;t have an account?{" "}
-                <button type="button" className="font-semibold text-rose hover:underline" onClick={() => setIsSignIn(false)}>
+                <button
+                  type="button"
+                  className="font-semibold text-rose hover:underline"
+                  onClick={() => setIsSignIn(false)}
+                >
                   Create account
                 </button>
               </p>
@@ -233,7 +262,11 @@ export function useAccountGate() {
                   className="rounded-[8px] border border-champagne bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30"
                 />
                 <Button type="submit">Create account and continue</Button>
-                {message && <p className="rounded-[8px] bg-rose/10 p-3 text-sm font-semibold text-rose">{message}</p>}
+                {message && (
+                  <p className="rounded-[8px] bg-rose/10 p-3 text-sm font-semibold text-rose">
+                    {message}
+                  </p>
+                )}
               </form>
 
               <div className="my-5 flex items-center gap-3 text-xs font-bold uppercase tracking-[0.16em] text-charcoal/40">
@@ -242,19 +275,27 @@ export function useAccountGate() {
                 <span className="h-px flex-1 bg-champagne" />
               </div>
 
-              <Button className="w-full" type="button" variant="secondary" onClick={handleGoogle}>
+              <Button
+                className="w-full"
+                type="button"
+                variant="secondary"
+                onClick={handleGoogle}
+              >
                 Continue with Google
               </Button>
 
               <p className="mt-5 text-center text-sm">
                 Already have an account?{" "}
-                <button type="button" className="font-semibold text-rose hover:underline" onClick={() => setIsSignIn(true)}>
+                <button
+                  type="button"
+                  className="font-semibold text-rose hover:underline"
+                  onClick={() => setIsSignIn(true)}
+                >
                   Sign in
                 </button>
               </p>
             </>
           )}
-
         </div>
       </div>
     );

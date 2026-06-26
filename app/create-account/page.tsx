@@ -5,17 +5,26 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, LockKeyhole } from "lucide-react";
 import { Button, Section } from "@/components/ui";
-import { createAccount, friendlyAuthError, signInWithGoogle, type UserCapability } from "@/lib/account-service";
+import {
+  createAccount,
+  friendlyAuthError,
+  signInWithGoogle,
+  type UserCapability,
+} from "@/lib/account-service";
 
 export default function CreateAccountPage() {
   const router = useRouter();
   const capability: UserCapability = (() => {
     if (typeof window === "undefined") return "couple";
-    return new URLSearchParams(window.location.search).get("capability") === "vendor" ? "vendor" : "couple";
+    return new URLSearchParams(window.location.search).get("capability") ===
+      "vendor"
+      ? "vendor"
+      : "couple";
   })();
   const [error, setError] = useState("");
 
-  const destination = capability === "vendor" ? "/vendor-onboarding" : "/onboarding";
+  const destination =
+    capability === "vendor" ? "/vendor-onboarding" : "/onboarding";
 
   async function handleCreateAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,9 +63,11 @@ export default function CreateAccountPage() {
               <LockKeyhole size={20} />
             </span>
             <h1 className="mt-5 font-serif text-5xl font-semibold">
-              {capability === "vendor" ? "Create your vendor account" : "Create your free wedding account"}
+              {capability === "vendor"
+                ? "Create your vendor account"
+                : "Create your free wedding account"}
             </h1>
-            <p className="mt-4 leading-7 text-white/68">
+            <p className="text-white/68 mt-4 leading-7">
               {capability === "vendor"
                 ? "Start managing your vendor profile, availability, and leads."
                 : "Start planning your wedding with budget tools, vendor search, and more."}
@@ -66,10 +77,30 @@ export default function CreateAccountPage() {
           <div className="rounded-[8px] border border-champagne/55 bg-white p-6 shadow-soft sm:p-8">
             <form className="grid gap-4" onSubmit={handleCreateAccount}>
               <h2 className="text-xl font-bold">Create account</h2>
-              <input required name="name" placeholder="Your name" className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30" />
-              <input required name="email" type="email" placeholder="Email address" className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30" />
-              <input required name="password" type="password" placeholder="Create password (at least 6 characters)" minLength={6} className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30" />
-              <Button type="submit">Create account <ArrowRight size={18} /></Button>
+              <input
+                required
+                name="name"
+                placeholder="Your name"
+                className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30"
+              />
+              <input
+                required
+                name="email"
+                type="email"
+                placeholder="Email address"
+                className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30"
+              />
+              <input
+                required
+                name="password"
+                type="password"
+                placeholder="Create password (at least 6 characters)"
+                minLength={6}
+                className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30"
+              />
+              <Button type="submit">
+                Create account <ArrowRight size={18} />
+              </Button>
             </form>
 
             <div className="my-6 flex items-center gap-3 text-xs font-bold uppercase tracking-[0.16em] text-charcoal/40">
@@ -78,15 +109,27 @@ export default function CreateAccountPage() {
               <span className="h-px flex-1 bg-champagne" />
             </div>
 
-            <Button className="w-full" type="button" variant="secondary" onClick={handleGoogleSignIn}>
+            <Button
+              className="w-full"
+              type="button"
+              variant="secondary"
+              onClick={handleGoogleSignIn}
+            >
               Continue with Google
             </Button>
 
-            {error && <p className="mt-4 rounded-[8px] bg-rose/10 p-3 text-sm font-semibold text-rose">{error}</p>}
+            {error && (
+              <p className="mt-4 rounded-[8px] bg-rose/10 p-3 text-sm font-semibold text-rose">
+                {error}
+              </p>
+            )}
 
             <p className="mt-5 text-center text-sm text-charcoal/55">
               Already have an account?{" "}
-              <Link href={`/sign-in?capability=${capability}`} className="font-bold text-rose">
+              <Link
+                href={`/sign-in?capability=${capability}`}
+                className="font-bold text-rose"
+              >
                 Sign in
               </Link>
             </p>

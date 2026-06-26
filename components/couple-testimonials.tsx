@@ -90,7 +90,7 @@ export function CoupleTestimonials() {
                   <div className="mt-4 flex items-end justify-between gap-4 border-t border-champagne/65 pt-3">
                     <div>
                       <p className="font-bold">{testimonial.couple}</p>
-                      <p className="mt-1 text-sm text-charcoal/58">
+                      <p className="text-charcoal/58 mt-1 text-sm">
                         {testimonial.location}
                       </p>
                     </div>

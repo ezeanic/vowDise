@@ -16,10 +16,16 @@ export const metadata: Metadata = {
     "A premium wedding planning MVP that helps couples discover vendors, plan budgets, and stay on track.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${cormorant.variable} bg-ivory font-sans text-charcoal antialiased`}>
+      <body
+        className={`${inter.variable} ${cormorant.variable} bg-ivory font-sans text-charcoal antialiased`}
+      >
         <AppNav />
         {children}
       </body>

@@ -50,7 +50,9 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   }
 }
 
-export async function saveUserProfile(profile: Partial<UserProfile> & { uid: string }): Promise<UserProfile> {
+export async function saveUserProfile(
+  profile: Partial<UserProfile> & { uid: string },
+): Promise<UserProfile> {
   const now = new Date().toISOString();
   const existing = await getUserProfile(profile.uid);
   const updatedProfile: UserProfile = {

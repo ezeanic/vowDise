@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Store } from "lucide-react";
+import { LocationSearch } from "@/components/location-search";
 import { Button, Section } from "@/components/ui";
 import {
   addAccountCapability,
@@ -12,7 +13,7 @@ import {
   signInWithPassword,
   type AccountRecord,
 } from "@/lib/account-service";
-import { citiesForState, formatLocation, locationStates } from "@/lib/location";
+import type { LocationSelection } from "@/lib/location";
 import { venueSubcategories } from "@/lib/venue-subcategories";
 import { categories } from "@/lib/vendors";
 
@@ -27,22 +28,31 @@ export default function VendorOnboardingPage() {
     category: "",
     venueSubcategory: "",
     location: "",
+    formattedLocation: "",
+    city: "",
+    state: "",
     locationState: "",
     locationCity: "",
+    lat: undefined as number | undefined,
+    lng: undefined as number | undefined,
     startingPrice: "",
     name: "",
     email: "",
     password: "",
   });
 
-  const steps = useMemo(() => (account ? ["Business"] : ["Business", "Account"]), [account]);
-  const cityOptions = citiesForState(values.locationState);
+  const steps = useMemo(
+    () => (account ? ["Business"] : ["Business", "Account"]),
+    [account],
+  );
 
   useEffect(() => {
     const saved = localStorage.getItem("vowdiseAccount");
     if (!saved) return;
     try {
-      const parsed = JSON.parse(saved) as Partial<AccountRecord> & { role?: "couple" | "vendor" };
+      const parsed = JSON.parse(saved) as Partial<AccountRecord> & {
+        role?: "couple" | "vendor";
+      };
       const account = {
         uid: parsed.uid || "local-couple",
         name: parsed.name || "Vowdise user",
@@ -54,6 +64,10 @@ export default function VendorOnboardingPage() {
         },
       };
       setAccount(account);
+      setValues((current) => ({
+        ...current,
+        email: current.email || account.email,
+      }));
     } catch {
       localStorage.removeItem("vowdiseAccount");
     }
@@ -63,34 +77,58 @@ export default function VendorOnboardingPage() {
     setValues({ ...values, [key]: value });
   }
 
-  function updateLocation(nextValues: Partial<Pick<typeof values, "locationState" | "locationCity">>) {
-    const nextState = nextValues.locationState ?? values.locationState;
-    const nextCity = nextValues.locationCity ?? values.locationCity;
+  function updateLocation(location: LocationSelection) {
     setValues({
       ...values,
-      ...nextValues,
-      location: formatLocation(nextCity, nextState),
+      location: location.formattedLocation,
+      formattedLocation: location.formattedLocation,
+      city: location.city,
+      state: location.state,
+      locationCity: location.city,
+      locationState: location.state,
+      lat: location.lat,
+      lng: location.lng,
     });
   }
 
   async function saveProfileForAccount(uid: string, vendorId?: string) {
-    return await saveVendorProfile(uid, {
-      businessName: values.businessName,
-      category: values.category,
-      venueSubcategory: values.category === "Venues" ? values.venueSubcategory : "",
-      location: values.location,
-      locationState: values.locationState,
-      locationCity: values.locationCity,
-      startingPrice: values.startingPrice,
-      description: "",
-      availabilityStatus: "Available",
-      serviceRadius: "",
-      bookingLeadTime: "",
-      availabilityNotes: "",
-      images: [],
-      blockedDates: [],
-      pendingRequestDates: [],
-    }, vendorId);
+    return await saveVendorProfile(
+      uid,
+      {
+        businessName: values.businessName,
+        category: values.category,
+        venueSubcategory:
+          values.category === "Venues" ? values.venueSubcategory : "",
+        location: values.location,
+        formattedLocation: values.formattedLocation || values.location,
+        city: values.city || values.locationCity,
+        state: values.state || values.locationState,
+        locationState: values.locationState,
+        locationCity: values.locationCity,
+        lat: values.lat,
+        lng: values.lng,
+        startingPrice: values.startingPrice,
+        contactEmail: values.email || account?.email,
+        email: values.email || account?.email,
+        description: "",
+        availabilityStatus: "Available",
+        serviceRadius: "25",
+        serviceRadiusMiles: 25,
+        bookingLeadTime: "",
+        availabilityNotes: "",
+        images: [],
+        packages: [
+          {
+            name: "Starting package",
+            price: Number(values.startingPrice || 0),
+            includes: "Package details will be added by the vendor soon.",
+          },
+        ],
+        blockedDates: [],
+        pendingRequestDates: [],
+      },
+      vendorId,
+    );
   }
 
   async function submit() {
@@ -121,11 +159,21 @@ export default function VendorOnboardingPage() {
           <span className="grid h-11 w-11 place-items-center rounded-full bg-charcoal text-white">
             <Store size={19} />
           </span>
-          <p className="mt-5 text-sm font-bold uppercase tracking-[0.18em] text-rose">Add business · Step {step + 1} of {steps.length}</p>
-          <h1 className="mt-3 font-serif text-4xl font-semibold">Create your business profile</h1>
-          <p className="mt-3 text-charcoal/62">Start with the basics. You can add photos, availability, packages, and richer details from your vendor dashboard later.</p>
+          <p className="mt-5 text-sm font-bold uppercase tracking-[0.18em] text-rose">
+            Add business · Step {step + 1} of {steps.length}
+          </p>
+          <h1 className="mt-3 font-serif text-4xl font-semibold">
+            Create your business profile
+          </h1>
+          <p className="text-charcoal/62 mt-3">
+            Start with the basics. You can add photos, availability, packages,
+            and richer details from your vendor dashboard later.
+          </p>
           <div className="mt-6 h-2 overflow-hidden rounded-full bg-champagne/30">
-            <div className="h-full rounded-full bg-gold transition-all" style={{ width: `${((step + 1) / steps.length) * 100}%` }} />
+            <div
+              className="h-full rounded-full bg-gold transition-all"
+              style={{ width: `${((step + 1) / steps.length) * 100}%` }}
+            />
           </div>
 
           <form
@@ -151,7 +199,15 @@ export default function VendorOnboardingPage() {
               <div className="grid gap-4">
                 <label className="grid gap-2">
                   <span className="font-bold">Business name</span>
-                  <input required value={values.businessName} onChange={(event) => updateValue("businessName", event.target.value)} placeholder="Golden Hour Events" className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30" />
+                  <input
+                    required
+                    value={values.businessName}
+                    onChange={(event) =>
+                      updateValue("businessName", event.target.value)
+                    }
+                    placeholder="Golden Hour Events"
+                    className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30"
+                  />
                 </label>
                 <label className="grid gap-2">
                   <span className="font-bold">Category</span>
@@ -163,7 +219,10 @@ export default function VendorOnboardingPage() {
                       setValues((current) => ({
                         ...current,
                         category: nextCategory,
-                        venueSubcategory: nextCategory === "Venues" ? current.venueSubcategory : "",
+                        venueSubcategory:
+                          nextCategory === "Venues"
+                            ? current.venueSubcategory
+                            : "",
                       }));
                     }}
                     className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30"
@@ -177,7 +236,14 @@ export default function VendorOnboardingPage() {
                 {isVenueProfile && (
                   <label className="grid gap-2">
                     <span className="font-bold">Venue type</span>
-                    <select required value={values.venueSubcategory} onChange={(event) => updateValue("venueSubcategory", event.target.value)} className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30">
+                    <select
+                      required
+                      value={values.venueSubcategory}
+                      onChange={(event) =>
+                        updateValue("venueSubcategory", event.target.value)
+                      }
+                      className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30"
+                    >
                       <option value="">Choose a venue type</option>
                       {venueSubcategories.map((subcategory) => (
                         <option key={subcategory}>{subcategory}</option>
@@ -187,35 +253,25 @@ export default function VendorOnboardingPage() {
                 )}
                 <label className="grid gap-2">
                   <span className="font-bold">Location</span>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <select
-                      required
-                      value={values.locationState}
-                      onChange={(event) => updateLocation({ locationState: event.target.value, locationCity: "" })}
-                      className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30"
-                    >
-                      <option value="">State</option>
-                      {locationStates.map((state) => <option key={state}>{state}</option>)}
-                    </select>
-                    <div>
-                      <input
-                        required
-                        value={values.locationCity}
-                        onChange={(event) => updateLocation({ locationCity: event.target.value })}
-                        placeholder={values.locationState ? "Search city" : "Choose state first"}
-                        list="vendor-onboarding-city-options"
-                        disabled={!values.locationState}
-                        className="w-full rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30 disabled:cursor-not-allowed disabled:opacity-60"
-                      />
-                      <datalist id="vendor-onboarding-city-options">
-                        {cityOptions.map((city) => <option key={city} value={city} />)}
-                      </datalist>
-                    </div>
-                  </div>
+                  <LocationSearch
+                    required
+                    value={values.formattedLocation || values.location}
+                    onChange={updateLocation}
+                    placeholder="San Jose, CA"
+                  />
                 </label>
                 <label className="grid gap-2">
                   <span className="font-bold">Starting price</span>
-                  <input required type="number" value={values.startingPrice} onChange={(event) => updateValue("startingPrice", event.target.value)} placeholder="2500" className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30" />
+                  <input
+                    required
+                    type="number"
+                    value={values.startingPrice}
+                    onChange={(event) =>
+                      updateValue("startingPrice", event.target.value)
+                    }
+                    placeholder="2500"
+                    className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30"
+                  />
                 </label>
               </div>
             )}
@@ -224,23 +280,62 @@ export default function VendorOnboardingPage() {
               <div className="grid gap-4">
                 <label className="grid gap-2">
                   <span className="font-bold">Your name</span>
-                  <input required value={values.name} onChange={(event) => updateValue("name", event.target.value)} placeholder="Taylor Lee" className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30" />
+                  <input
+                    required
+                    value={values.name}
+                    onChange={(event) =>
+                      updateValue("name", event.target.value)
+                    }
+                    placeholder="Taylor Lee"
+                    className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30"
+                  />
                 </label>
                 <label className="grid gap-2">
                   <span className="font-bold">Business email</span>
-                  <input required type="email" value={values.email} onChange={(event) => updateValue("email", event.target.value)} placeholder="hello@example.com" className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30" />
+                  <input
+                    required
+                    type="email"
+                    value={values.email}
+                    onChange={(event) =>
+                      updateValue("email", event.target.value)
+                    }
+                    placeholder="hello@example.com"
+                    className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30"
+                  />
                 </label>
                 <label className="grid gap-2">
                   <span className="font-bold">Create password</span>
-                  <input required type="password" minLength={6} value={values.password} onChange={(event) => updateValue("password", event.target.value)} placeholder="At least 6 characters" className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30" />
+                  <input
+                    required
+                    type="password"
+                    minLength={6}
+                    value={values.password}
+                    onChange={(event) =>
+                      updateValue("password", event.target.value)
+                    }
+                    placeholder="At least 6 characters"
+                    className="rounded-[8px] border border-champagne bg-ivory px-4 py-3 outline-none focus:ring-2 focus:ring-gold/30"
+                  />
                 </label>
               </div>
             )}
 
             <div className="mt-6 flex justify-between">
-              <Button type="button" variant="ghost" disabled={step === 0} onClick={() => setStep(step - 1)}>Back</Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={step === 0}
+                onClick={() => setStep(step - 1)}
+              >
+                Back
+              </Button>
               <Button type="submit" disabled={isSubmitting}>
-                {step === steps.length - 1 ? (isSubmitting ? "Saving..." : "Create Business Profile") : "Continue"} <ArrowRight size={18} />
+                {step === steps.length - 1
+                  ? isSubmitting
+                    ? "Saving..."
+                    : "Create Business Profile"
+                  : "Continue"}{" "}
+                <ArrowRight size={18} />
               </Button>
             </div>
             {error && (

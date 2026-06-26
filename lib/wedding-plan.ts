@@ -1,5 +1,14 @@
-import type { BookingStatus, Vendor, VendorBooking, VendorCategory } from "./types";
-import { getBookingsForAccount, saveBooking, updateBookingStatus } from "./bookings";
+import type {
+  BookingStatus,
+  Vendor,
+  VendorBooking,
+  VendorCategory,
+} from "./types";
+import {
+  getBookingsForAccount,
+  saveBooking,
+  updateBookingStatus,
+} from "./bookings";
 
 export const vendorCategoryToBudgetCategory: Record<VendorCategory, string> = {
   Venues: "Venue",
@@ -31,10 +40,18 @@ export async function addVendorToPlan(
   vendor: Vendor,
   status: BookingStatus = "saved",
   details: Partial<VendorBooking> = {},
+  options: { requireRemote?: boolean } = {},
 ) {
   const existingBookings = await getBookingsForAccount(uid);
-  const existing = existingBookings.find((booking) => booking.vendorId === vendor.id);
-  const nextStatus = existing && statusRank[existing.status] > statusRank[status] ? existing.status : status;
+  const existing = existingBookings.find(
+    (booking) =>
+      booking.vendorId === vendor.id &&
+      !(options.requireRemote && booking.id.startsWith("local-")),
+  );
+  const nextStatus =
+    existing && statusRank[existing.status] > statusRank[status]
+      ? existing.status
+      : status;
   const nextData: Partial<VendorBooking> = {
     vendorId: vendor.id,
     vendorName: vendor.name,
@@ -45,17 +62,21 @@ export async function addVendorToPlan(
   };
 
   if (existing) {
-    await updateBookingStatus(uid, existing.id, nextStatus, nextData);
+    await updateBookingStatus(uid, existing.id, nextStatus, nextData, options);
     return { ...existing, ...nextData, status: nextStatus } as VendorBooking;
   }
 
-  return saveBooking(uid, {
-    vendorId: vendor.id,
-    vendorName: vendor.name,
-    category: vendor.category,
-    budgetCategory: budgetCategoryForVendor(vendor),
-    quotedPrice: vendor.startingPrice,
-    status,
-    ...details,
-  });
+  return saveBooking(
+    uid,
+    {
+      vendorId: vendor.id,
+      vendorName: vendor.name,
+      category: vendor.category,
+      budgetCategory: budgetCategoryForVendor(vendor),
+      quotedPrice: vendor.startingPrice,
+      status,
+      ...details,
+    },
+    options,
+  );
 }

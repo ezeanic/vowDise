@@ -13,7 +13,8 @@ export const bookingTimeline: TimelineItem[] = [
     vendorCategory: ["Venues"],
     monthsBefore: 12,
     priority: "critical",
-    description: "Book your venue as early as possible - popular dates can be booked 12-18 months in advance.",
+    description:
+      "Book your venue as early as possible - popular dates can be booked 12-18 months in advance.",
     tips: [
       "Have 2-3 backup dates in mind",
       "Consider weekday weddings for better availability and pricing",
@@ -26,7 +27,8 @@ export const bookingTimeline: TimelineItem[] = [
     vendorCategory: ["Caterers"],
     monthsBefore: 9,
     priority: "critical",
-    description: "Caterers often book up 6-12 months in advance, especially for peak wedding season.",
+    description:
+      "Caterers often book up 6-12 months in advance, especially for peak wedding season.",
     tips: [
       "Schedule tastings before signing",
       "Clarify service fees and gratuity expectations",
@@ -39,7 +41,8 @@ export const bookingTimeline: TimelineItem[] = [
     vendorCategory: ["Photographers"],
     monthsBefore: 10,
     priority: "high",
-    description: "Top photographers often have limited availability and book 8-12 months out.",
+    description:
+      "Top photographers often have limited availability and book 8-12 months out.",
     tips: [
       "Review full wedding galleries, not just highlights",
       "Check if they have a second shooter included",
@@ -52,7 +55,8 @@ export const bookingTimeline: TimelineItem[] = [
     vendorCategory: ["Videographers"],
     monthsBefore: 8,
     priority: "high",
-    description: "Videographers should be booked 6-10 months before your wedding date.",
+    description:
+      "Videographers should be booked 6-10 months before your wedding date.",
     tips: [
       "Decide between highlight reel vs full ceremony coverage",
       "Ask about drone footage options",
@@ -65,7 +69,8 @@ export const bookingTimeline: TimelineItem[] = [
     vendorCategory: ["DJs"],
     monthsBefore: 6,
     priority: "high",
-    description: "Book your DJ or band 4-8 months in advance to secure your date.",
+    description:
+      "Book your DJ or band 4-8 months in advance to secure your date.",
     tips: [
       "Ask about MC services and announcements",
       "Review their music library and genre flexibility",
@@ -78,7 +83,8 @@ export const bookingTimeline: TimelineItem[] = [
     vendorCategory: ["Florists"],
     monthsBefore: 6,
     priority: "medium",
-    description: "Florists typically need 4-6 months to plan and source materials for your wedding.",
+    description:
+      "Florists typically need 4-6 months to plan and source materials for your wedding.",
     tips: [
       "Bring inspiration photos but stay open to seasonal alternatives",
       "Ask about repurposing ceremony pieces for reception",
@@ -91,7 +97,8 @@ export const bookingTimeline: TimelineItem[] = [
     vendorCategory: ["Wedding Planners"],
     monthsBefore: 10,
     priority: "high",
-    description: "Hire a wedding planner 8-12 months before your wedding for best results.",
+    description:
+      "Hire a wedding planner 8-12 months before your wedding for best results.",
     tips: [
       "Clarify what's included in day-of vs full-service planning",
       "Ask about vendor relationships and discounts",
@@ -104,7 +111,8 @@ export const bookingTimeline: TimelineItem[] = [
     vendorCategory: [],
     monthsBefore: 8,
     priority: "medium",
-    description: "Order your wedding dress 6-9 months in advance to allow for alterations.",
+    description:
+      "Order your wedding dress 6-9 months in advance to allow for alterations.",
     tips: [
       "Budget for alterations (typically $500-1500)",
       "Consider the season for fabric choice",
@@ -117,7 +125,8 @@ export const bookingTimeline: TimelineItem[] = [
     vendorCategory: ["Cake Vendors"],
     monthsBefore: 4,
     priority: "medium",
-    description: "Cake vendors typically need 3-6 months notice for custom designs.",
+    description:
+      "Cake vendors typically need 3-6 months notice for custom designs.",
     tips: [
       "Schedule a tasting before finalizing",
       "Ask about delivery and setup fees",
@@ -143,7 +152,8 @@ export const bookingTimeline: TimelineItem[] = [
     vendorCategory: [],
     monthsBefore: 4,
     priority: "low",
-    description: "Finalize decor rentals and purchases 3-4 months before the wedding.",
+    description:
+      "Finalize decor rentals and purchases 3-4 months before the wedding.",
     tips: [
       "Consider DIY vs rental cost comparison",
       "Check venue restrictions on decor",
@@ -156,7 +166,8 @@ export const bookingTimeline: TimelineItem[] = [
     vendorCategory: ["Makeup Artists"],
     monthsBefore: 3,
     priority: "low",
-    description: "Book makeup artists and other beauty services 2-4 months in advance.",
+    description:
+      "Book makeup artists and other beauty services 2-4 months in advance.",
     tips: [
       "Schedule a trial run before the wedding",
       "Ask about bridal party pricing",
@@ -168,14 +179,20 @@ export const bookingTimeline: TimelineItem[] = [
 
 export function getTimelineForWeddingDate(weddingDate: Date): TimelineItem[] {
   const now = new Date();
-  const monthsUntil = Math.max(0, (weddingDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30));
-  
+  const monthsUntil = Math.max(
+    0,
+    (weddingDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30),
+  );
+
   return bookingTimeline
-    .filter(item => item.monthsBefore <= monthsUntil + 2) // Show items that should be booked soon or are overdue
+    .filter((item) => item.monthsBefore <= monthsUntil + 2) // Show items that should be booked soon or are overdue
     .sort((a, b) => b.monthsBefore - a.monthsBefore);
 }
 
-export function getTimelineStatus(monthsUntil: number, monthsBefore: number): "overdue" | "urgent" | "on-track" | "upcoming" {
+export function getTimelineStatus(
+  monthsUntil: number,
+  monthsBefore: number,
+): "overdue" | "urgent" | "on-track" | "upcoming" {
   if (monthsUntil < monthsBefore - 2) return "overdue";
   if (monthsUntil < monthsBefore) return "urgent";
   if (monthsUntil < monthsBefore + 2) return "on-track";

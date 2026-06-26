@@ -3,7 +3,13 @@
 import { useState } from "react";
 import { Send } from "lucide-react";
 
-export function ChatInput({ onSend, disabled }: { onSend: (message: string) => void; disabled?: boolean }) {
+export function ChatInput({
+  onSend,
+  disabled,
+}: {
+  onSend: (message: string) => void;
+  disabled?: boolean;
+}) {
   const [message, setMessage] = useState("");
 
   function handleSubmit(e: React.FormEvent) {
@@ -14,7 +20,10 @@ export function ChatInput({ onSend, disabled }: { onSend: (message: string) => v
   }
 
   return (
-    <form onSubmit={handleSubmit} className="border-t border-champagne/30 p-4 bg-white">
+    <form
+      onSubmit={handleSubmit}
+      className="border-t border-champagne/30 bg-white p-4"
+    >
       <div className="flex gap-3">
         <input
           type="text"
@@ -27,7 +36,7 @@ export function ChatInput({ onSend, disabled }: { onSend: (message: string) => v
         <button
           type="submit"
           disabled={!message.trim() || disabled}
-          className="rounded-full bg-charcoal p-3 text-white transition hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed"
+          className="rounded-full bg-charcoal p-3 text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Send size={20} />
         </button>

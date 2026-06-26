@@ -10,12 +10,19 @@ type BecomeVendorButtonProps = {
   children?: ReactNode;
 };
 
-export function BecomeVendorButton({ className, children }: BecomeVendorButtonProps) {
+export function BecomeVendorButton({
+  className,
+  children,
+}: BecomeVendorButtonProps) {
   const router = useRouter();
 
   function handleClick() {
     const savedAccount = localStorage.getItem("vowdiseAccount");
-    router.push(savedAccount ? "/vendor-onboarding" : "/sign-in?capability=vendor&next=/vendor-onboarding");
+    router.push(
+      savedAccount
+        ? "/vendor-onboarding"
+        : "/sign-in?capability=vendor&next=/vendor-onboarding",
+    );
   }
 
   return (

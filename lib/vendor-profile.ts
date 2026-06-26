@@ -1,12 +1,31 @@
-import type { Vendor, VendorCategory, VendorReview } from "./types";
+import type {
+  Vendor,
+  VendorCategory,
+  VendorPackage,
+  VendorReview,
+} from "./types";
 import { categories, vendors } from "./vendors";
 import { FirebaseError } from "firebase/app";
-import { collection, doc, getDoc, getDocs, query, where, setDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  setDoc,
+} from "firebase/firestore";
 import { getDownloadURL, listAll, ref } from "firebase/storage";
 import { auth, db, isFirebaseConfigured, storage } from "./firebase";
+import {
+  coordinatesForValues,
+  formatLocation,
+  serviceRadiusMilesFor,
+} from "./location";
 import { readableId } from "./readable-id";
 
-const fallbackImage = "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=80";
+const fallbackImage =
+  "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=80";
 
 type StoredVendorProfile = {
   id?: string;
@@ -14,16 +33,25 @@ type StoredVendorProfile = {
   category?: string;
   venueSubcategory?: string;
   location?: string;
+  formattedLocation?: string;
+  city?: string;
+  state?: string;
   locationState?: string;
   locationCity?: string;
+  lat?: number;
+  lng?: number;
   startingPrice?: string;
+  contactEmail?: string;
+  email?: string;
   description?: string;
   availabilityStatus?: string;
   serviceRadius?: string;
+  serviceRadiusMiles?: number;
   bookingLeadTime?: string;
   availabilityNotes?: string;
   images?: string[];
   imageUrls?: string[];
+  packages?: VendorPackage[];
   blockedDates?: string[];
   pendingRequestDates?: string[];
   rating?: number;
@@ -32,6 +60,36 @@ type StoredVendorProfile = {
 };
 
 type NormalizedVendorProfile = StoredVendorProfile & { id: string };
+
+function normalizePackages(
+  packages: StoredVendorProfile["packages"],
+  startingPrice = 0,
+) {
+  const normalized =
+    packages
+      ?.map((pkg) => ({
+        name: pkg.name?.trim() || "",
+        price: Number(pkg.price || 0),
+        includes: pkg.includes?.trim() || "",
+      }))
+      .filter(
+        (pkg) =>
+          pkg.name.length > 0 &&
+          pkg.includes.length > 0 &&
+          Number.isFinite(pkg.price) &&
+          pkg.price >= 0,
+      ) ?? [];
+
+  return normalized.length
+    ? normalized
+    : [
+        {
+          name: "Starting package",
+          price: startingPrice,
+          includes: "Package details will be added by the vendor soon.",
+        },
+      ];
+}
 
 async function getStorageGalleryImages(vendorId: string) {
   if (!isFirebaseConfigured || !storage) return [];
@@ -45,15 +103,14 @@ async function getStorageGalleryImages(vendorId: string) {
   }
 }
 
-async function getRemoteReviewsForVendor(vendorId: string): Promise<VendorReview[]> {
+async function getRemoteReviewsForVendor(
+  vendorId: string,
+): Promise<VendorReview[]> {
   if (!isFirebaseConfigured || !db) return [];
 
   try {
     const snapshot = await getDocs(
-      query(
-        collection(db, "vendorReviews"),
-        where("vendorId", "==", vendorId),
-      ),
+      query(collection(db, "vendorReviews"), where("vendorId", "==", vendorId)),
     );
 
     return snapshot.docs.map((doc) => doc.data() as VendorReview);
@@ -71,10 +128,15 @@ export async function getReviewsForVendor(vendorId: string) {
     unique.set(key, review);
   });
 
-  return Array.from(unique.values()).sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+  return Array.from(unique.values()).sort((a, b) =>
+    (b.createdAt ?? "").localeCompare(a.createdAt ?? ""),
+  );
 }
 
-export async function saveVendorReview(vendorId: string, review: Omit<VendorReview, "createdAt"> & { createdAt?: string }) {
+export async function saveVendorReview(
+  vendorId: string,
+  review: Omit<VendorReview, "createdAt"> & { createdAt?: string },
+) {
   const createdAt = review.createdAt ?? new Date().toISOString();
   const newReview = {
     ...review,
@@ -82,7 +144,9 @@ export async function saveVendorReview(vendorId: string, review: Omit<VendorRevi
   };
 
   if (!isFirebaseConfigured || !db) {
-    throw new Error("Reviews cannot be saved until the database is configured.");
+    throw new Error(
+      "Reviews cannot be saved until the database is configured.",
+    );
   }
 
   if (!auth?.currentUser) {
@@ -92,7 +156,7 @@ export async function saveVendorReview(vendorId: string, review: Omit<VendorRevi
   try {
     const reviewRef = doc(
       collection(db, "vendorReviews"),
-      readableId(`${review.name}-${vendorId}`, "review")
+      readableId(`${review.name}-${vendorId}`, "review"),
     );
     await setDoc(reviewRef, {
       vendorId,
@@ -101,7 +165,9 @@ export async function saveVendorReview(vendorId: string, review: Omit<VendorRevi
     });
   } catch (error) {
     if (error instanceof FirebaseError && error.code === "permission-denied") {
-      throw new Error("Reviews are not enabled in the live database rules yet.");
+      throw new Error(
+        "Reviews are not enabled in the live database rules yet.",
+      );
     }
 
     throw error;
@@ -117,27 +183,46 @@ export async function saveVendorReview(vendorId: string, review: Omit<VendorRevi
     unique.set(key, item);
   });
 
-  return Array.from(unique.values()).sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+  return Array.from(unique.values()).sort((a, b) =>
+    (b.createdAt ?? "").localeCompare(a.createdAt ?? ""),
+  );
 }
 
-function normalizeProfile(profile: StoredVendorProfile): NormalizedVendorProfile {
-  const sanitizedId = profile.id?.trim() || readableId(profile.businessName || "local-business", "local-business");
+function normalizeProfile(
+  profile: StoredVendorProfile,
+): NormalizedVendorProfile {
+  const sanitizedId =
+    profile.id?.trim() ||
+    readableId(profile.businessName || "local-business", "local-business");
   return {
     ...profile,
     id: sanitizedId,
     businessName: profile.businessName?.trim(),
     category: profile.category?.trim(),
     venueSubcategory: profile.venueSubcategory?.trim(),
-    location: profile.location?.trim(),
-    locationState: profile.locationState?.trim(),
-    locationCity: profile.locationCity?.trim(),
+    formattedLocation:
+      profile.formattedLocation?.trim() || profile.location?.trim(),
+    city: profile.city?.trim() || profile.locationCity?.trim(),
+    state: profile.state?.trim() || profile.locationState?.trim(),
+    location: profile.location?.trim() || profile.formattedLocation?.trim(),
+    locationState: profile.locationState?.trim() || profile.state?.trim(),
+    locationCity: profile.locationCity?.trim() || profile.city?.trim(),
+    lat: Number.isFinite(Number(profile.lat)) ? Number(profile.lat) : undefined,
+    lng: Number.isFinite(Number(profile.lng)) ? Number(profile.lng) : undefined,
     startingPrice: profile.startingPrice?.trim(),
+    contactEmail: profile.contactEmail?.trim() || profile.email?.trim(),
+    email: profile.email?.trim() || profile.contactEmail?.trim(),
     description: profile.description?.trim(),
     availabilityStatus: profile.availabilityStatus?.trim(),
     serviceRadius: profile.serviceRadius?.trim(),
+    serviceRadiusMiles: serviceRadiusMilesFor(profile),
     bookingLeadTime: profile.bookingLeadTime?.trim(),
     availabilityNotes: profile.availabilityNotes?.trim(),
     images: (profile.images ?? profile.imageUrls)?.filter(Boolean) ?? [],
+    packages: normalizePackages(
+      profile.packages,
+      Number(profile.startingPrice || 0),
+    ),
     blockedDates: profile.blockedDates ?? [],
     pendingRequestDates: profile.pendingRequestDates ?? [],
   };
@@ -152,17 +237,36 @@ function profileToVendor(profile: StoredVendorProfile): Vendor {
   const startingPrice = Number(normalized.startingPrice || 0);
   const rating = Number(profile.rating ?? 0) || 0;
   const reviewCount = Number(profile.reviewCount ?? 0) || 0;
+  const formattedLocation =
+    normalized.formattedLocation ||
+    normalized.location ||
+    formatLocation(normalized.city || "", normalized.state || "");
+  const coordinates = coordinatesForValues({
+    lat: normalized.lat,
+    lng: normalized.lng,
+    location: formattedLocation,
+  });
 
   return {
     id: normalized.id,
     name: normalized.businessName ?? "Unnamed business",
     category,
-    venueSubcategory: category === "Venues" ? normalized.venueSubcategory : undefined,
-    location: normalized.location || "Location pending",
+    venueSubcategory:
+      category === "Venues" ? normalized.venueSubcategory : undefined,
+    location: formattedLocation || "Location pending",
+    formattedLocation,
+    city: normalized.city,
+    state: normalized.state,
+    lat: coordinates?.lat,
+    lng: coordinates?.lng,
+    serviceRadiusMiles: serviceRadiusMilesFor(normalized),
     startingPrice,
+    contactEmail: normalized.contactEmail,
+    email: normalized.email,
     rating,
     reviewCount,
-    availability: normalized.availabilityStatus === "Limited" ? "Limited" : "High",
+    availability:
+      normalized.availabilityStatus === "Limited" ? "Limited" : "High",
     ownerUid: normalized.ownerUid,
     blockedDates: normalized.blockedDates,
     pendingRequestDates: normalized.pendingRequestDates,
@@ -171,13 +275,7 @@ function profileToVendor(profile: StoredVendorProfile): Vendor {
     description:
       normalized.description ||
       "This vendor is setting up their Vowdise profile. Request a quote to learn more about their services.",
-    packages: [
-      {
-        name: "Starting package",
-        price: startingPrice,
-        includes: "Package details will be added by the vendor soon.",
-      },
-    ],
+    packages: normalizePackages(normalized.packages, startingPrice),
     reviews: [],
     budgetFit: "Great fit",
     isRealVendor: true,
@@ -227,25 +325,31 @@ export async function getRemoteMarketplaceVendors() {
       return map;
     }, new Map<string, { count: number; totalRating: number }>());
 
-    return await Promise.all(vendorSnapshot.docs.map(async (docSnapshot) => {
-      const data = docSnapshot.data() as StoredVendorProfile;
-      const storedImages = (data.images ?? data.imageUrls)?.filter(Boolean) ?? [];
-      const galleryImages = storedImages.length ? storedImages : await getStorageGalleryImages(docSnapshot.id);
-      const vendor = profileToVendor({
-        id: docSnapshot.id,
-        ...data,
-        images: galleryImages,
-        imageUrls: galleryImages,
-      });
+    return await Promise.all(
+      vendorSnapshot.docs.map(async (docSnapshot) => {
+        const data = docSnapshot.data() as StoredVendorProfile;
+        const storedImages =
+          (data.images ?? data.imageUrls)?.filter(Boolean) ?? [];
+        const galleryImages = storedImages.length
+          ? storedImages
+          : await getStorageGalleryImages(docSnapshot.id);
+        const vendor = profileToVendor({
+          id: docSnapshot.id,
+          ...data,
+          images: galleryImages,
+          imageUrls: galleryImages,
+        });
 
-      const stats = reviewStats.get(vendor.id);
-      if (stats?.count) {
-        vendor.reviewCount = stats.count;
-        vendor.rating = Math.round((stats.totalRating / stats.count) * 10) / 10;
-      }
+        const stats = reviewStats.get(vendor.id);
+        if (stats?.count) {
+          vendor.reviewCount = stats.count;
+          vendor.rating =
+            Math.round((stats.totalRating / stats.count) * 10) / 10;
+        }
 
-      return vendor;
-    }));
+        return vendor;
+      }),
+    );
   } catch {
     return [];
   }
@@ -258,7 +362,8 @@ export async function getMarketplaceVendorsWithRemote() {
 
 export async function getVendorProfile(vendorId: string) {
   const localProfile = getLocalVendorProfile(vendorId);
-  if (!isFirebaseConfigured || !db || vendorId.startsWith("local-")) return localProfile;
+  if (!isFirebaseConfigured || !db || vendorId.startsWith("local-"))
+    return localProfile;
 
   try {
     const snapshot = await getDoc(doc(db, "vendors", vendorId));
@@ -266,7 +371,9 @@ export async function getVendorProfile(vendorId: string) {
 
     const data = snapshot.data() as StoredVendorProfile;
     const storedImages = (data.images ?? data.imageUrls)?.filter(Boolean) ?? [];
-    const galleryImages = storedImages.length ? storedImages : await getStorageGalleryImages(snapshot.id);
+    const galleryImages = storedImages.length
+      ? storedImages
+      : await getStorageGalleryImages(snapshot.id);
 
     return normalizeProfile({
       id: snapshot.id,
@@ -287,21 +394,26 @@ export async function getVendorProfilesForAccount(uid: string) {
 
   try {
     const snapshot = await getDocs(
-      query(collection(db, "vendors"), where("ownerUid", "==", uid))
+      query(collection(db, "vendors"), where("ownerUid", "==", uid)),
     );
 
-    return await Promise.all(snapshot.docs.map(async (docSnapshot) => {
-      const data = docSnapshot.data() as StoredVendorProfile;
-      const storedImages = (data.images ?? data.imageUrls)?.filter(Boolean) ?? [];
-      const galleryImages = storedImages.length ? storedImages : await getStorageGalleryImages(docSnapshot.id);
+    return await Promise.all(
+      snapshot.docs.map(async (docSnapshot) => {
+        const data = docSnapshot.data() as StoredVendorProfile;
+        const storedImages =
+          (data.images ?? data.imageUrls)?.filter(Boolean) ?? [];
+        const galleryImages = storedImages.length
+          ? storedImages
+          : await getStorageGalleryImages(docSnapshot.id);
 
-      return normalizeProfile({
-        id: docSnapshot.id,
-        ...data,
-        images: galleryImages,
-        imageUrls: galleryImages,
-      });
-    }));
+        return normalizeProfile({
+          id: docSnapshot.id,
+          ...data,
+          images: galleryImages,
+          imageUrls: galleryImages,
+        });
+      }),
+    );
   } catch {
     return [];
   }
@@ -326,7 +438,9 @@ function getLocalVendorProfile(vendorId: string) {
 
   try {
     const saved = localStorage.getItem(`vowdiseVendorProfile:${vendorId}`);
-    return saved ? normalizeProfile(JSON.parse(saved) as StoredVendorProfile) : null;
+    return saved
+      ? normalizeProfile(JSON.parse(saved) as StoredVendorProfile)
+      : null;
   } catch {
     localStorage.removeItem(`vowdiseVendorProfile:${vendorId}`);
     return null;

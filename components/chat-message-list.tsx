@@ -15,7 +15,13 @@ function formatTimeAgo(timestamp: string): string {
   return date.toLocaleDateString();
 }
 
-export function ChatMessageList({ messages, currentUserId }: { messages: ChatMessage[]; currentUserId: string }) {
+export function ChatMessageList({
+  messages,
+  currentUserId,
+}: {
+  messages: ChatMessage[];
+  currentUserId: string;
+}) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -23,7 +29,7 @@ export function ChatMessageList({ messages, currentUserId }: { messages: ChatMes
   }, [messages]);
 
   return (
-    <div className="flex-1 overflow-y-auto space-y-4 p-4">
+    <div className="flex-1 space-y-4 overflow-y-auto p-4">
       {messages.length === 0 ? (
         <div className="flex h-full items-center justify-center text-charcoal/40">
           <p>No messages yet. Start the conversation!</p>
@@ -40,7 +46,7 @@ export function ChatMessageList({ messages, currentUserId }: { messages: ChatMes
                 className={`max-w-[70%] rounded-2xl px-4 py-3 ${
                   isOwn
                     ? "bg-charcoal text-white"
-                    : "bg-white border border-champagne/30 text-charcoal"
+                    : "border border-champagne/30 bg-white text-charcoal"
                 }`}
               >
                 {!isOwn && (
@@ -48,7 +54,9 @@ export function ChatMessageList({ messages, currentUserId }: { messages: ChatMes
                     {message.senderName}
                   </p>
                 )}
-                <p className="text-sm leading-relaxed">{message.content}</p>
+                <p className="whitespace-pre-line text-sm leading-relaxed">
+                  {message.content}
+                </p>
                 <div className="mt-1 flex items-center justify-end gap-2">
                   <span className="text-xs opacity-60">
                     {formatTimeAgo(message.timestamp)}

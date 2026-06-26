@@ -1,6 +1,18 @@
 import type { ChatMessage, Conversation } from "./types";
 import { db, isFirebaseConfigured } from "./firebase";
-import { collection, doc, getDoc, getDocs, query, where, updateDoc, serverTimestamp, limit, onSnapshot, setDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  updateDoc,
+  serverTimestamp,
+  limit,
+  onSnapshot,
+  setDoc,
+} from "firebase/firestore";
 import { readableId } from "./readable-id";
 
 const CONVERSATIONS_KEY = "vowdiseConversations";
@@ -33,29 +45,48 @@ function getLocalMessages(conversationId: string): ChatMessage[] {
 
 function setLocalMessages(conversationId: string, messages: ChatMessage[]) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(`${MESSAGES_KEY}:${conversationId}`, JSON.stringify(messages));
+  localStorage.setItem(
+    `${MESSAGES_KEY}:${conversationId}`,
+    JSON.stringify(messages),
+  );
 }
 
 function toIsoString(value: unknown): string {
   if (typeof value === "string") return value;
   if (value instanceof Date) return value.toISOString();
-  if (value && typeof value === "object" && "toDate" in value && typeof value.toDate === "function") {
+  if (
+    value &&
+    typeof value === "object" &&
+    "toDate" in value &&
+    typeof value.toDate === "function"
+  ) {
     return value.toDate().toISOString();
   }
   return new Date().toISOString();
 }
 
-function normalizeConversation(id: string, data: Record<string, unknown>): Conversation {
+function normalizeConversation(
+  id: string,
+  data: Record<string, unknown>,
+): Conversation {
   return {
-    ...(data as Omit<Conversation, "id" | "createdAt" | "updatedAt" | "lastMessageTime">),
+    ...(data as Omit<
+      Conversation,
+      "id" | "createdAt" | "updatedAt" | "lastMessageTime"
+    >),
     id,
     createdAt: toIsoString(data.createdAt),
     updatedAt: toIsoString(data.updatedAt),
-    lastMessageTime: data.lastMessageTime ? toIsoString(data.lastMessageTime) : undefined,
+    lastMessageTime: data.lastMessageTime
+      ? toIsoString(data.lastMessageTime)
+      : undefined,
   };
 }
 
-function normalizeMessage(id: string, data: Record<string, unknown>): ChatMessage {
+function normalizeMessage(
+  id: string,
+  data: Record<string, unknown>,
+): ChatMessage {
   return {
     ...(data as Omit<ChatMessage, "id" | "timestamp">),
     id,
@@ -71,20 +102,44 @@ function byTimestampAsc(a: ChatMessage, b: ChatMessage) {
   return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
 }
 
+function roleForUserInConversation(
+  conversation: Conversation,
+  userId: string,
+): "couple" | "vendor" | null {
+  if (conversation.coupleId === userId) return "couple";
+  if (
+    conversation.vendorOwnerUid === userId ||
+    conversation.vendorId === userId
+  ) {
+    return "vendor";
+  }
+  return null;
+}
+
 function uniqueConversations(conversations: Conversation[]) {
   const byId = new Map<string, Conversation>();
-  for (const conversation of conversations) byId.set(conversation.id, conversation);
+  for (const conversation of conversations)
+    byId.set(conversation.id, conversation);
   return Array.from(byId.values()).sort(byUpdatedAtDesc);
 }
 
-export async function getConversationsForUser(userId: string, role: "couple" | "vendor", vendorProfileId?: string): Promise<Conversation[]> {
+export async function getConversationsForUser(
+  userId: string,
+  role: "couple" | "vendor",
+  vendorProfileId?: string,
+): Promise<Conversation[]> {
   if (!isFirebaseConfigured || !db || userId.startsWith("local-")) {
     const localConversations = getLocalConversations();
     return localConversations
       .filter((conversation) => {
         if (role === "couple") return conversation.coupleId === userId;
-        const belongsToVendor = conversation.vendorOwnerUid === userId || conversation.vendorId === userId;
-        return belongsToVendor && (!vendorProfileId || conversation.vendorId === vendorProfileId);
+        const belongsToVendor =
+          conversation.vendorOwnerUid === userId ||
+          conversation.vendorId === userId;
+        return (
+          belongsToVendor &&
+          (!vendorProfileId || conversation.vendorId === vendorProfileId)
+        );
       })
       .sort(byUpdatedAtDesc);
   }
@@ -92,13 +147,12 @@ export async function getConversationsForUser(userId: string, role: "couple" | "
   try {
     if (role === "couple") {
       const snapshot = await getDocs(
-        query(
-          collection(db, "conversations"),
-          where("coupleId", "==", userId)
-        )
+        query(collection(db, "conversations"), where("coupleId", "==", userId)),
       );
       return snapshot.docs
-        .map((docSnapshot) => normalizeConversation(docSnapshot.id, docSnapshot.data()))
+        .map((docSnapshot) =>
+          normalizeConversation(docSnapshot.id, docSnapshot.data()),
+        )
         .sort(byUpdatedAtDesc);
     }
 
@@ -106,23 +160,36 @@ export async function getConversationsForUser(userId: string, role: "couple" | "
       const snapshot = await getDocs(
         query(
           collection(db, "conversations"),
-          where("vendorId", "==", vendorProfileId)
-        )
+          where("vendorId", "==", vendorProfileId),
+        ),
       );
       return snapshot.docs
-        .map((docSnapshot) => normalizeConversation(docSnapshot.id, docSnapshot.data()))
-        .filter((conversation) => conversation.vendorOwnerUid === userId || conversation.vendorId === userId)
+        .map((docSnapshot) =>
+          normalizeConversation(docSnapshot.id, docSnapshot.data()),
+        )
+        .filter(
+          (conversation) =>
+            conversation.vendorOwnerUid === userId ||
+            conversation.vendorId === userId,
+        )
         .sort(byUpdatedAtDesc);
     }
 
     const [ownerSnapshot, legacySnapshot] = await Promise.all([
-      getDocs(query(collection(db, "conversations"), where("vendorOwnerUid", "==", userId))),
-      getDocs(query(collection(db, "conversations"), where("vendorId", "==", userId))),
+      getDocs(
+        query(
+          collection(db, "conversations"),
+          where("vendorOwnerUid", "==", userId),
+        ),
+      ),
+      getDocs(
+        query(collection(db, "conversations"), where("vendorId", "==", userId)),
+      ),
     ]);
     return uniqueConversations(
       [...ownerSnapshot.docs, ...legacySnapshot.docs].map((docSnapshot) =>
-        normalizeConversation(docSnapshot.id, docSnapshot.data())
-      )
+        normalizeConversation(docSnapshot.id, docSnapshot.data()),
+      ),
     );
   } catch (error) {
     console.error("Failed to load conversations:", error);
@@ -134,15 +201,20 @@ export function subscribeToConversationsForUser(
   userId: string,
   role: "couple" | "vendor",
   onConversations: (conversations: Conversation[]) => void,
-  vendorProfileId?: string
+  vendorProfileId?: string,
 ) {
   if (!isFirebaseConfigured || !db || userId.startsWith("local-")) {
     function emitLocalConversations() {
       const localConversations = getLocalConversations()
         .filter((conversation) => {
           if (role === "couple") return conversation.coupleId === userId;
-          const belongsToVendor = conversation.vendorOwnerUid === userId || conversation.vendorId === userId;
-          return belongsToVendor && (!vendorProfileId || conversation.vendorId === vendorProfileId);
+          const belongsToVendor =
+            conversation.vendorOwnerUid === userId ||
+            conversation.vendorId === userId;
+          return (
+            belongsToVendor &&
+            (!vendorProfileId || conversation.vendorId === vendorProfileId)
+          );
         })
         .sort(byUpdatedAtDesc);
       onConversations(localConversations);
@@ -164,32 +236,43 @@ export function subscribeToConversationsForUser(
       (snapshot) => {
         onConversations(
           snapshot.docs
-            .map((docSnapshot) => normalizeConversation(docSnapshot.id, docSnapshot.data()))
-            .sort(byUpdatedAtDesc)
+            .map((docSnapshot) =>
+              normalizeConversation(docSnapshot.id, docSnapshot.data()),
+            )
+            .sort(byUpdatedAtDesc),
         );
       },
       (error) => {
         console.error("Failed to subscribe to conversations:", error);
         onConversations([]);
-      }
+      },
     );
   }
 
   if (vendorProfileId) {
     return onSnapshot(
-      query(collection(db, "conversations"), where("vendorId", "==", vendorProfileId)),
+      query(
+        collection(db, "conversations"),
+        where("vendorId", "==", vendorProfileId),
+      ),
       (snapshot) => {
         onConversations(
           snapshot.docs
-            .map((docSnapshot) => normalizeConversation(docSnapshot.id, docSnapshot.data()))
-            .filter((conversation) => conversation.vendorOwnerUid === userId || conversation.vendorId === userId)
-            .sort(byUpdatedAtDesc)
+            .map((docSnapshot) =>
+              normalizeConversation(docSnapshot.id, docSnapshot.data()),
+            )
+            .filter(
+              (conversation) =>
+                conversation.vendorOwnerUid === userId ||
+                conversation.vendorId === userId,
+            )
+            .sort(byUpdatedAtDesc),
         );
       },
       (error) => {
         console.error("Failed to subscribe to business conversations:", error);
         onConversations([]);
-      }
+      },
     );
   }
 
@@ -197,24 +280,41 @@ export function subscribeToConversationsForUser(
   let legacyConversations: Conversation[] = [];
 
   function emitVendorConversations() {
-    onConversations(uniqueConversations([...ownerConversations, ...legacyConversations]));
+    onConversations(
+      uniqueConversations([...ownerConversations, ...legacyConversations]),
+    );
   }
 
   const unsubscribeOwner = onSnapshot(
-    query(collection(db, "conversations"), where("vendorOwnerUid", "==", userId)),
+    query(
+      collection(db, "conversations"),
+      where("vendorOwnerUid", "==", userId),
+    ),
     (snapshot) => {
-      ownerConversations = snapshot.docs.map((docSnapshot) => normalizeConversation(docSnapshot.id, docSnapshot.data()));
+      ownerConversations = snapshot.docs.map((docSnapshot) =>
+        normalizeConversation(docSnapshot.id, docSnapshot.data()),
+      );
       emitVendorConversations();
     },
-    (error) => console.error("Failed to subscribe to vendor-owned conversations:", error)
+    (error) =>
+      console.error(
+        "Failed to subscribe to vendor-owned conversations:",
+        error,
+      ),
   );
   const unsubscribeLegacy = onSnapshot(
     query(collection(db, "conversations"), where("vendorId", "==", userId)),
     (snapshot) => {
-      legacyConversations = snapshot.docs.map((docSnapshot) => normalizeConversation(docSnapshot.id, docSnapshot.data()));
+      legacyConversations = snapshot.docs.map((docSnapshot) =>
+        normalizeConversation(docSnapshot.id, docSnapshot.data()),
+      );
       emitVendorConversations();
     },
-    (error) => console.error("Failed to subscribe to legacy vendor conversations:", error)
+    (error) =>
+      console.error(
+        "Failed to subscribe to legacy vendor conversations:",
+        error,
+      ),
   );
 
   return () => {
@@ -223,10 +323,12 @@ export function subscribeToConversationsForUser(
   };
 }
 
-export async function getConversation(conversationId: string): Promise<Conversation | null> {
+export async function getConversation(
+  conversationId: string,
+): Promise<Conversation | null> {
   if (!isFirebaseConfigured || !db || conversationId.startsWith("local-")) {
     const localConversations = getLocalConversations();
-    return localConversations.find(c => c.id === conversationId) || null;
+    return localConversations.find((c) => c.id === conversationId) || null;
   }
 
   try {
@@ -239,10 +341,19 @@ export async function getConversation(conversationId: string): Promise<Conversat
   }
 }
 
-export async function getConversationForCoupleAndVendor(coupleId: string, vendorId: string): Promise<Conversation | null> {
+export async function getConversationForCoupleAndVendor(
+  coupleId: string,
+  vendorId: string,
+): Promise<Conversation | null> {
   if (!isFirebaseConfigured || !db) {
     const localConversations = getLocalConversations();
-    return localConversations.find((conversation) => conversation.coupleId === coupleId && conversation.vendorId === vendorId) || null;
+    return (
+      localConversations.find(
+        (conversation) =>
+          conversation.coupleId === coupleId &&
+          conversation.vendorId === vendorId,
+      ) || null
+    );
   }
 
   try {
@@ -251,8 +362,8 @@ export async function getConversationForCoupleAndVendor(coupleId: string, vendor
         collection(db, "conversations"),
         where("coupleId", "==", coupleId),
         where("vendorId", "==", vendorId),
-        limit(1)
-      )
+        limit(1),
+      ),
     );
 
     if (snapshot.empty) return null;
@@ -264,7 +375,9 @@ export async function getConversationForCoupleAndVendor(coupleId: string, vendor
   }
 }
 
-export async function getMessages(conversationId: string): Promise<ChatMessage[]> {
+export async function getMessages(
+  conversationId: string,
+): Promise<ChatMessage[]> {
   if (!isFirebaseConfigured || !db || conversationId.startsWith("local-")) {
     return getLocalMessages(conversationId);
   }
@@ -273,11 +386,13 @@ export async function getMessages(conversationId: string): Promise<ChatMessage[]
     const snapshot = await getDocs(
       query(
         collection(db, "messages"),
-        where("conversationId", "==", conversationId)
-      )
+        where("conversationId", "==", conversationId),
+      ),
     );
     const remoteMessages = snapshot.docs
-      .map((docSnapshot) => normalizeMessage(docSnapshot.id, docSnapshot.data()))
+      .map((docSnapshot) =>
+        normalizeMessage(docSnapshot.id, docSnapshot.data()),
+      )
       .sort(byTimestampAsc);
     const localMessages = getLocalMessages(conversationId);
     if (localMessages.length === 0) return remoteMessages;
@@ -292,7 +407,10 @@ export async function getMessages(conversationId: string): Promise<ChatMessage[]
   }
 }
 
-export function subscribeToMessages(conversationId: string, onMessages: (messages: ChatMessage[]) => void) {
+export function subscribeToMessages(
+  conversationId: string,
+  onMessages: (messages: ChatMessage[]) => void,
+) {
   if (!isFirebaseConfigured || !db || conversationId.startsWith("local-")) {
     onMessages(getLocalMessages(conversationId).sort(byTimestampAsc));
 
@@ -308,14 +426,16 @@ export function subscribeToMessages(conversationId: string, onMessages: (message
 
   const messagesQuery = query(
     collection(db, "messages"),
-    where("conversationId", "==", conversationId)
+    where("conversationId", "==", conversationId),
   );
 
   return onSnapshot(
     messagesQuery,
     (snapshot) => {
       const remoteMessages = snapshot.docs
-        .map((docSnapshot) => normalizeMessage(docSnapshot.id, docSnapshot.data()))
+        .map((docSnapshot) =>
+          normalizeMessage(docSnapshot.id, docSnapshot.data()),
+        )
         .sort(byTimestampAsc);
       const localMessages = getLocalMessages(conversationId);
       if (localMessages.length === 0) {
@@ -331,7 +451,7 @@ export function subscribeToMessages(conversationId: string, onMessages: (message
     (error) => {
       console.error("Failed to subscribe to messages:", error);
       onMessages(getLocalMessages(conversationId).sort(byTimestampAsc));
-    }
+    },
   );
 }
 
@@ -341,7 +461,7 @@ export async function createConversation(
   vendorId: string,
   vendorName: string,
   vendorBusinessName?: string,
-  vendorOwnerUid?: string
+  vendorOwnerUid?: string,
 ): Promise<Conversation> {
   const now = new Date().toISOString();
   const conversationId = `local-${readableId(`${coupleName}-${vendorBusinessName || vendorName}`, "conversation")}`;
@@ -354,11 +474,17 @@ export async function createConversation(
     vendorName,
     vendorBusinessName,
     unreadCount: 0,
+    unreadFor: null,
     createdAt: now,
     updatedAt: now,
   };
 
-  if (!isFirebaseConfigured || !db || coupleId.startsWith("local-") || vendorId.startsWith("local-")) {
+  if (
+    !isFirebaseConfigured ||
+    !db ||
+    coupleId.startsWith("local-") ||
+    vendorId.startsWith("local-")
+  ) {
     const localConversations = getLocalConversations();
     localConversations.push(newConversation);
     setLocalConversations(localConversations);
@@ -368,7 +494,10 @@ export async function createConversation(
   try {
     const conversationRef = doc(
       collection(db, "conversations"),
-      readableId(`${coupleName}-${vendorBusinessName || vendorName}`, "conversation")
+      readableId(
+        `${coupleName}-${vendorBusinessName || vendorName}`,
+        "conversation",
+      ),
     );
     await setDoc(conversationRef, {
       coupleId,
@@ -378,10 +507,23 @@ export async function createConversation(
       vendorName,
       vendorBusinessName,
       unreadCount: 0,
+      unreadFor: null,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-    return { id: conversationRef.id, coupleId, coupleName, vendorId, vendorOwnerUid, vendorName, vendorBusinessName, unreadCount: 0, createdAt: now, updatedAt: now };
+    return {
+      id: conversationRef.id,
+      coupleId,
+      coupleName,
+      vendorId,
+      vendorOwnerUid,
+      vendorName,
+      vendorBusinessName,
+      unreadCount: 0,
+      unreadFor: null,
+      createdAt: now,
+      updatedAt: now,
+    };
   } catch (error) {
     console.error("Failed to create conversation:", error);
     const localConversations = getLocalConversations();
@@ -396,11 +538,11 @@ export async function sendMessage(
   senderId: string,
   senderName: string,
   senderRole: "couple" | "vendor",
-  content: string
+  content: string,
 ): Promise<ChatMessage> {
   const now = new Date().toISOString();
   const newMessage: ChatMessage = {
-    id: `local-${readableId(senderName, "message")}`,
+    id: `local-${readableId(`${senderName}-${now}-${content.slice(0, 32)}`, "message")}`,
     conversationId,
     senderId,
     senderName,
@@ -417,14 +559,18 @@ export async function sendMessage(
 
     // Update conversation
     const localConversations = getLocalConversations();
-    const convIndex = localConversations.findIndex(c => c.id === conversationId);
+    const convIndex = localConversations.findIndex(
+      (c) => c.id === conversationId,
+    );
     if (convIndex !== -1) {
+      const unreadFor = senderRole === "couple" ? "vendor" : "couple";
       localConversations[convIndex] = {
         ...localConversations[convIndex],
         lastMessage: content,
         lastMessageTime: now,
         updatedAt: now,
         unreadCount: localConversations[convIndex].unreadCount + 1,
+        unreadFor,
       };
       setLocalConversations(localConversations);
     }
@@ -435,7 +581,7 @@ export async function sendMessage(
   try {
     const messageRef = doc(
       collection(db, "messages"),
-      readableId(senderName, "message")
+      readableId(`${senderName}-${now}-${content.slice(0, 32)}`, "message"),
     );
     await setDoc(messageRef, {
       conversationId,
@@ -450,11 +596,13 @@ export async function sendMessage(
     // Update conversation
     const conversation = await getConversation(conversationId);
     if (conversation) {
+      const unreadFor = senderRole === "couple" ? "vendor" : "couple";
       await updateDoc(doc(db, "conversations", conversationId), {
         lastMessage: content,
         lastMessageTime: serverTimestamp(),
         updatedAt: serverTimestamp(),
         unreadCount: conversation.unreadCount + 1,
+        unreadFor,
       });
     }
 
@@ -468,16 +616,38 @@ export async function sendMessage(
   }
 }
 
-export async function markMessagesAsRead(conversationId: string, userId: string): Promise<void> {
+export async function markMessagesAsRead(
+  conversationId: string,
+  userId: string,
+): Promise<void> {
   if (!isFirebaseConfigured || !db || conversationId.startsWith("local-")) {
     const localMessages = getLocalMessages(conversationId);
-    const updated = localMessages.map(m => m.senderId !== userId ? { ...m, read: true } : m);
+    const updated = localMessages.map((m) =>
+      m.senderId !== userId ? { ...m, read: true } : m,
+    );
     setLocalMessages(conversationId, updated);
 
     const localConversations = getLocalConversations();
-    const convIndex = localConversations.findIndex(c => c.id === conversationId);
+    const convIndex = localConversations.findIndex(
+      (c) => c.id === conversationId,
+    );
     if (convIndex !== -1) {
-      localConversations[convIndex] = { ...localConversations[convIndex], unreadCount: 0 };
+      const userRole = roleForUserInConversation(
+        localConversations[convIndex],
+        userId,
+      );
+      const shouldClearUnread =
+        !localConversations[convIndex].unreadFor ||
+        localConversations[convIndex].unreadFor === userRole;
+      localConversations[convIndex] = {
+        ...localConversations[convIndex],
+        unreadCount: shouldClearUnread
+          ? 0
+          : localConversations[convIndex].unreadCount,
+        unreadFor: shouldClearUnread
+          ? null
+          : localConversations[convIndex].unreadFor,
+      };
       setLocalConversations(localConversations);
     }
     return;
@@ -493,7 +663,13 @@ export async function markMessagesAsRead(conversationId: string, userId: string)
 
     const conversation = await getConversation(conversationId);
     if (conversation) {
-      await updateDoc(doc(db, "conversations", conversationId), { unreadCount: 0 });
+      const userRole = roleForUserInConversation(conversation, userId);
+      if (!conversation.unreadFor || conversation.unreadFor === userRole) {
+        await updateDoc(doc(db, "conversations", conversationId), {
+          unreadCount: 0,
+          unreadFor: null,
+        });
+      }
     }
   } catch (error) {
     console.error("Failed to mark messages as read:", error);
@@ -506,19 +682,31 @@ export async function findOrCreateConversation(
   vendorId: string,
   vendorName: string,
   vendorBusinessName?: string,
-  vendorOwnerUid?: string
+  vendorOwnerUid?: string,
 ): Promise<Conversation> {
   const existing = await getConversationForCoupleAndVendor(coupleId, vendorId);
   if (existing) return existing;
 
-  return createConversation(coupleId, coupleName, vendorId, vendorName, vendorBusinessName, vendorOwnerUid);
+  return createConversation(
+    coupleId,
+    coupleName,
+    vendorId,
+    vendorName,
+    vendorBusinessName,
+    vendorOwnerUid,
+  );
 }
 
-export async function updateCoupleNameForAccount(coupleId: string, coupleName: string): Promise<void> {
+export async function updateCoupleNameForAccount(
+  coupleId: string,
+  coupleName: string,
+): Promise<void> {
   if (!isFirebaseConfigured || !db || coupleId.startsWith("local-")) {
     const localConversations = getLocalConversations();
     const updatedConversations = localConversations.map((conversation) =>
-      conversation.coupleId === coupleId ? { ...conversation, coupleName } : conversation
+      conversation.coupleId === coupleId
+        ? { ...conversation, coupleName }
+        : conversation,
     );
     setLocalConversations(updatedConversations);
 
@@ -528,7 +716,7 @@ export async function updateCoupleNameForAccount(coupleId: string, coupleName: s
       const updatedMessages = localMessages.map((message) =>
         message.senderId === coupleId && message.senderRole === "couple"
           ? { ...message, senderName: coupleName }
-          : message
+          : message,
       );
       setLocalMessages(conversation.id, updatedMessages);
     }
@@ -540,25 +728,32 @@ export async function updateCoupleNameForAccount(coupleId: string, coupleName: s
     if (!activeDb) return;
 
     const conversationSnapshot = await getDocs(
-      query(collection(activeDb, "conversations"), where("coupleId", "==", coupleId))
+      query(
+        collection(activeDb, "conversations"),
+        where("coupleId", "==", coupleId),
+      ),
     );
     await Promise.all(
       conversationSnapshot.docs.map((docSnapshot) =>
-        updateDoc(doc(activeDb, "conversations", docSnapshot.id), { coupleName })
-      )
+        updateDoc(doc(activeDb, "conversations", docSnapshot.id), {
+          coupleName,
+        }),
+      ),
     );
 
     const messageSnapshot = await getDocs(
       query(
         collection(activeDb, "messages"),
         where("senderId", "==", coupleId),
-        where("senderRole", "==", "couple")
-      )
+        where("senderRole", "==", "couple"),
+      ),
     );
     await Promise.all(
       messageSnapshot.docs.map((docSnapshot) =>
-        updateDoc(doc(activeDb, "messages", docSnapshot.id), { senderName: coupleName })
-      )
+        updateDoc(doc(activeDb, "messages", docSnapshot.id), {
+          senderName: coupleName,
+        }),
+      ),
     );
   } catch (error) {
     console.error("Failed to update couple name:", error);

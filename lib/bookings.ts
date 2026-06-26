@@ -1,9 +1,22 @@
 import type { VendorBooking, BookingStatus } from "./types";
 import { db, isFirebaseConfigured } from "./firebase";
-import { collection, doc, getDocs, query, where, updateDoc, deleteDoc, orderBy, setDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDocs,
+  query,
+  where,
+  updateDoc,
+  deleteDoc,
+  setDoc,
+} from "firebase/firestore";
 import { readableId } from "./readable-id";
 
 const LOCAL_STORAGE_KEY = "vowdiseBookings";
+
+type BookingWriteOptions = {
+  requireRemote?: boolean;
+};
 
 function notifyPlanChanged() {
   if (typeof window === "undefined") return;
@@ -26,13 +39,27 @@ function setLocalBookings(bookings: VendorBooking[]) {
   notifyPlanChanged();
 }
 
-function bookingDocumentId(uid: string, booking: Pick<VendorBooking, "vendorId" | "vendorName" | "status">) {
-  return readableId(`${uid}-${booking.vendorId || booking.vendorName}-${booking.status}`, "booking");
+function sortBookingsByCreatedAt(bookings: VendorBooking[]) {
+  return [...bookings].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-export async function getBookingsForAccount(uid: string): Promise<VendorBooking[]> {
+function bookingDocumentId(
+  uid: string,
+  booking: Pick<VendorBooking, "vendorId" | "vendorName" | "status">,
+) {
+  return readableId(
+    `${uid}-${booking.vendorId || booking.vendorName}-${booking.status}`,
+    "booking",
+  );
+}
+
+export async function getBookingsForAccount(
+  uid: string,
+): Promise<VendorBooking[]> {
   const localBookings = getLocalBookings().filter((booking) =>
-    booking.ownerUid ? booking.ownerUid === uid : booking.id.startsWith(uid) || booking.id.startsWith("local-")
+    booking.ownerUid
+      ? booking.ownerUid === uid
+      : booking.id.startsWith(uid) || booking.id.startsWith("local-"),
   );
 
   if (!isFirebaseConfigured || !db || uid.startsWith("local-")) {
@@ -44,18 +71,29 @@ export async function getBookingsForAccount(uid: string): Promise<VendorBooking[
       query(
         collection(db, "bookings"),
         where("ownerUid", "==", uid),
-        orderBy("createdAt", "desc")
-      )
+      ),
     );
-    const remoteBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VendorBooking));
-    const remoteIds = new Set(remoteBookings.map((booking) => booking.vendorId));
-    return [...remoteBookings, ...localBookings.filter((booking) => !remoteIds.has(booking.vendorId))];
-  } catch {
+    const remoteBookings = sortBookingsByCreatedAt(
+      snapshot.docs.map(
+        (doc) => ({ id: doc.id, ...doc.data() }) as VendorBooking,
+      ),
+    );
+    const remoteIds = new Set(
+      remoteBookings.map((booking) => booking.vendorId),
+    );
+    return sortBookingsByCreatedAt([
+      ...remoteBookings,
+      ...localBookings.filter((booking) => !remoteIds.has(booking.vendorId)),
+    ]);
+  } catch (error) {
+    console.warn("Failed to load account bookings:", error);
     return localBookings;
   }
 }
 
-export async function getBookingsForVendor(vendorId: string): Promise<VendorBooking[]> {
+export async function getBookingsForVendor(
+  vendorId: string,
+): Promise<VendorBooking[]> {
   if (!isFirebaseConfigured || !db) {
     return getLocalBookings().filter((b) => b.vendorId === vendorId);
   }
@@ -65,16 +103,24 @@ export async function getBookingsForVendor(vendorId: string): Promise<VendorBook
       query(
         collection(db, "bookings"),
         where("vendorId", "==", vendorId),
-        orderBy("createdAt", "desc")
-      )
+      ),
     );
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as VendorBooking));
-  } catch {
+    return sortBookingsByCreatedAt(
+      snapshot.docs.map(
+        (doc) => ({ id: doc.id, ...doc.data() }) as VendorBooking,
+      ),
+    );
+  } catch (error) {
+    console.warn("Failed to load vendor bookings:", error);
     return [];
   }
 }
 
-export async function saveBooking(uid: string, booking: Omit<VendorBooking, "id" | "createdAt" | "updatedAt">): Promise<VendorBooking> {
+export async function saveBooking(
+  uid: string,
+  booking: Omit<VendorBooking, "id" | "createdAt" | "updatedAt">,
+  options: BookingWriteOptions = {},
+): Promise<VendorBooking> {
   const now = new Date().toISOString();
   const remoteBookingId = bookingDocumentId(uid, booking);
   const newBooking: VendorBooking = {
@@ -86,6 +132,10 @@ export async function saveBooking(uid: string, booking: Omit<VendorBooking, "id"
   };
 
   if (!isFirebaseConfigured || !db || uid.startsWith("local-")) {
+    if (options.requireRemote) {
+      throw new Error("Firebase is required to send quote requests.");
+    }
+
     const localBookings = getLocalBookings();
     localBookings.push(newBooking);
     setLocalBookings(localBookings);
@@ -104,6 +154,7 @@ export async function saveBooking(uid: string, booking: Omit<VendorBooking, "id"
     return { id: bookingRef.id, ...booking, createdAt: now, updatedAt: now };
   } catch (error) {
     console.error("Failed to save booking:", error);
+    if (options.requireRemote) throw error;
     // Fallback to local storage
     const localBookings = getLocalBookings();
     localBookings.push(newBooking);
@@ -112,13 +163,28 @@ export async function saveBooking(uid: string, booking: Omit<VendorBooking, "id"
   }
 }
 
-export async function updateBookingStatus(uid: string, bookingId: string, status: BookingStatus, additionalData?: Partial<VendorBooking>): Promise<void> {
+export async function updateBookingStatus(
+  uid: string,
+  bookingId: string,
+  status: BookingStatus,
+  additionalData?: Partial<VendorBooking>,
+  options: BookingWriteOptions = {},
+): Promise<void> {
   const now = new Date().toISOString();
   const updateData = { status, updatedAt: now, ...additionalData };
 
-  if (!isFirebaseConfigured || !db || uid.startsWith("local-") || bookingId.startsWith("local-")) {
+  if (
+    !isFirebaseConfigured ||
+    !db ||
+    uid.startsWith("local-") ||
+    bookingId.startsWith("local-")
+  ) {
+    if (options.requireRemote) {
+      throw new Error("Firebase is required to send quote requests.");
+    }
+
     const localBookings = getLocalBookings();
-    const index = localBookings.findIndex(b => b.id === bookingId);
+    const index = localBookings.findIndex((b) => b.id === bookingId);
     if (index !== -1) {
       localBookings[index] = { ...localBookings[index], ...updateData };
       setLocalBookings(localBookings);
@@ -131,12 +197,21 @@ export async function updateBookingStatus(uid: string, bookingId: string, status
     notifyPlanChanged();
   } catch (error) {
     console.error("Failed to update booking:", error);
+    if (options.requireRemote) throw error;
   }
 }
 
-export async function deleteBooking(uid: string, bookingId: string): Promise<void> {
-  if (!isFirebaseConfigured || !db || uid.startsWith("local-") || bookingId.startsWith("local-")) {
-    const localBookings = getLocalBookings().filter(b => b.id !== bookingId);
+export async function deleteBooking(
+  uid: string,
+  bookingId: string,
+): Promise<void> {
+  if (
+    !isFirebaseConfigured ||
+    !db ||
+    uid.startsWith("local-") ||
+    bookingId.startsWith("local-")
+  ) {
+    const localBookings = getLocalBookings().filter((b) => b.id !== bookingId);
     setLocalBookings(localBookings);
     return;
   }
@@ -151,10 +226,18 @@ export async function deleteBooking(uid: string, bookingId: string): Promise<voi
 
 export function getBookedTotal(bookings: VendorBooking[]): number {
   return bookings
-    .filter(b => b.status === "booked" || b.status === "contract_signed" || b.status === "paid")
+    .filter(
+      (b) =>
+        b.status === "booked" ||
+        b.status === "contract_signed" ||
+        b.status === "paid",
+    )
     .reduce((sum, b) => sum + (b.bookedPrice || 0), 0);
 }
 
-export function getBookingsByBudgetCategory(bookings: VendorBooking[], budgetCategory: string): VendorBooking[] {
-  return bookings.filter(b => b.budgetCategory === budgetCategory);
+export function getBookingsByBudgetCategory(
+  bookings: VendorBooking[],
+  budgetCategory: string,
+): VendorBooking[] {
+  return bookings.filter((b) => b.budgetCategory === budgetCategory);
 }

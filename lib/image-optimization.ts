@@ -19,16 +19,23 @@ const browserDecodableImageTypes = new Set([
 
 function isBrowserDecodableImage(file: File) {
   const fileName = file.name.toLowerCase();
-  return browserDecodableImageTypes.has(file.type) ||
-    /\.(jpe?g|png|webp|gif|svg)$/.test(fileName);
+  return (
+    browserDecodableImageTypes.has(file.type) ||
+    /\.(jpe?g|png|webp|gif|svg)$/.test(fileName)
+  );
 }
 
-function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) {
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  type: string,
+  quality: number,
+) {
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
         if (blob) resolve(blob);
-        else reject(new Error("Unable to optimize image. Try a different file."));
+        else
+          reject(new Error("Unable to optimize image. Try a different file."));
       },
       type,
       quality,
@@ -36,7 +43,10 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) 
   });
 }
 
-function getTargetDimensions({ width, height }: ImageDimensions, maxDimension: number) {
+function getTargetDimensions(
+  { width, height }: ImageDimensions,
+  maxDimension: number,
+) {
   const largestDimension = Math.max(width, height);
   if (largestDimension <= maxDimension) return { width, height };
 
@@ -47,7 +57,10 @@ function getTargetDimensions({ width, height }: ImageDimensions, maxDimension: n
   };
 }
 
-function drawImageToCanvas(image: CanvasImageSource, dimensions: ImageDimensions) {
+function drawImageToCanvas(
+  image: CanvasImageSource,
+  dimensions: ImageDimensions,
+) {
   const canvas = document.createElement("canvas");
   canvas.width = dimensions.width;
   canvas.height = dimensions.height;
@@ -79,7 +92,9 @@ async function loadImage(file: File) {
     };
   } catch {
     URL.revokeObjectURL(url);
-    throw new Error(`${file.name} could not be decoded. Use a JPG, PNG, or WebP image.`);
+    throw new Error(
+      `${file.name} could not be decoded. Use a JPG, PNG, or WebP image.`,
+    );
   }
 }
 
@@ -90,7 +105,9 @@ function optimizedFileName(fileName: string) {
 
 export async function optimizeVendorImageFile(file: File) {
   if (!isBrowserDecodableImage(file)) {
-    throw new Error(`${file.name} is not a supported upload format. Use JPG, PNG, WebP, GIF, or SVG.`);
+    throw new Error(
+      `${file.name} is not a supported upload format. Use JPG, PNG, WebP, GIF, or SVG.`,
+    );
   }
 
   if (file.type === "image/gif" || file.type === "image/svg+xml") return file;
@@ -115,7 +132,11 @@ export async function optimizeVendorImageFile(file: File) {
         }
       }
 
-      const scale = Math.max(0.78, Math.sqrt(targetImageBytes / (bestBlob?.size || targetImageBytes)) * 0.94);
+      const scale = Math.max(
+        0.78,
+        Math.sqrt(targetImageBytes / (bestBlob?.size || targetImageBytes)) *
+          0.94,
+      );
       dimensions = {
         width: Math.round(dimensions.width * scale),
         height: Math.round(dimensions.height * scale),
