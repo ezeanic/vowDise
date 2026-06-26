@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, LogOut, MessageSquare, Pencil, Store, UserRound, WalletCards, X } from "lucide-react";
+import { Check, ChevronDown, LogOut, Menu, MessageSquare, Pencil, Store, UserRound, WalletCards, X } from "lucide-react";
 import logoImage from "@/logoImage.png";
 import { getStoredAccount, hasStoredVendorProfile, signOutAccount, updateAccountProfile, type AccountRecord } from "@/lib/account-service";
 import { updateCoupleNameForAccount } from "@/lib/chat";
@@ -29,6 +29,7 @@ export function AppNav() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({ name: "", spouseName: "" });
   const [profileMessage, setProfileMessage] = useState("");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -78,16 +79,19 @@ export function AppNav() {
   }, []);
 
   useEffect(() => {
-    if (!isProfileOpen) return;
+    if (!isProfileOpen && !isMobileMenuOpen) return;
 
     function handlePointerDown(event: PointerEvent) {
-      if (!profileMenuRef.current?.contains(event.target as Node)) {
+      if (isProfileOpen && !profileMenuRef.current?.contains(event.target as Node)) {
         setIsProfileOpen(false);
       }
     }
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setIsProfileOpen(false);
+      if (event.key === "Escape") {
+        setIsProfileOpen(false);
+        setIsMobileMenuOpen(false);
+      }
     }
 
     document.addEventListener("pointerdown", handlePointerDown);
@@ -97,7 +101,7 @@ export function AppNav() {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isProfileOpen]);
+  }, [isProfileOpen, isMobileMenuOpen]);
 
   const displayName = formatCoupleName(profile?.name || account?.name, profile?.spouseName);
 
@@ -163,12 +167,28 @@ export function AppNav() {
           ))}
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="grid h-10 w-10 place-items-center rounded-full bg-white text-charcoal shadow-sm ring-1 ring-champagne/70 transition hover:bg-ivory md:hidden"
+            onClick={() => {
+              setIsProfileOpen(false);
+              setIsMobileMenuOpen((current) => !current);
+            }}
+            aria-label="Open menu"
+            aria-expanded={isMobileMenuOpen}
+            aria-controls="mobile-navigation"
+          >
+            {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
           {account ? (
             <div className="relative" ref={profileMenuRef}>
               <button
                 type="button"
                 className="flex items-center gap-2 rounded-full bg-white px-2 py-1.5 text-sm font-bold text-charcoal shadow-sm ring-1 ring-champagne/70 transition hover:bg-ivory"
-                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setIsProfileOpen(!isProfileOpen);
+                }}
                 aria-expanded={isProfileOpen}
               >
                 <span className="grid h-8 w-8 place-items-center rounded-full bg-charcoal text-xs text-white">
@@ -298,13 +318,38 @@ export function AppNav() {
               <Link href="/sign-in" className="hidden rounded-full px-4 py-2 text-sm font-semibold text-charcoal/70 hover:bg-white/75 sm:inline-flex">
                 Sign in
               </Link>
-              <LinkButton href="/budget" className="px-4 py-2">
+              <LinkButton href="/budget" className="hidden px-4 py-2 md:inline-flex">
                 Start Planning
               </LinkButton>
             </>
           )}
         </div>
       </nav>
+      {isMobileMenuOpen && (
+        <div id="mobile-navigation" className="border-t border-champagne/45 bg-ivory/96 px-4 py-3 shadow-soft md:hidden">
+          <div className="mx-auto grid max-w-7xl gap-1">
+            {links.map(([label, href]) => (
+              <Link
+                key={href}
+                href={href}
+                className="rounded-[8px] px-3 py-3 text-sm font-semibold text-charcoal/75 hover:bg-white/80 hover:text-charcoal"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                {!account && href === "/budget" ? "Start Planning" : label}
+              </Link>
+            ))}
+            {!account && (
+              <Link
+                href="/sign-in"
+                className="rounded-[8px] px-3 py-3 text-sm font-semibold text-charcoal/75 hover:bg-white/80 hover:text-charcoal sm:hidden"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Sign in
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 }
