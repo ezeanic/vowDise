@@ -80,13 +80,13 @@ export default function AiPlannerPage() {
         {/* HERO */}
         <div className="mx-auto max-w-6xl">
           <div className={`${cardBase} overflow-hidden`}>
-            <div className="grid gap-10 p-10 xl:grid-cols-[1.1fr_0.9fr] xl:items-center">
-              <div className="space-y-6">
+            <div className="grid gap-6 p-5 sm:p-8 lg:p-10 xl:grid-cols-[1.1fr_0.9fr] xl:items-center">
+              <div className="min-w-0 space-y-5 sm:space-y-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-rose">
                   AI Wedding Planner
                 </p>
 
-                <h1 className="text-5xl font-semibold leading-[1.05] text-charcoal">
+                <h1 className="text-3xl font-semibold leading-[1.08] text-charcoal sm:text-4xl lg:text-5xl">
                   Turn your wedding vision into curated vendor recommendations.
                 </h1>
 
@@ -96,7 +96,7 @@ export default function AiPlannerPage() {
                 </p>
               </div>
 
-              <div className="rounded-[24px] bg-charcoal p-8 text-white shadow-soft">
+              <div className="w-full min-w-0 rounded-[18px] bg-charcoal p-5 text-white shadow-soft sm:rounded-[24px] sm:p-8">
                 <div className="flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-white/70">
                   <Sparkles size={16} />
                   AI Preview
@@ -107,12 +107,12 @@ export default function AiPlannerPage() {
                     <>
                       <div>
                         <p className="text-sm text-white/60">Recommended budget</p>
-                        <p className="mt-2 text-4xl font-semibold">
+                        <p className="mt-2 text-3xl font-semibold sm:text-4xl">
                           {money(plan.totalBudget)}
                         </p>
                       </div>
 
-                      <div className="grid gap-2 text-sm text-white/75 sm:grid-cols-2">
+                      <div className="grid gap-2 text-sm text-white/75 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                         <div className="rounded-xl bg-white/10 p-4">
                           {plan.guests} guests
                         </div>
@@ -219,31 +219,6 @@ export default function AiPlannerPage() {
                 <p className="mt-8 rounded-xl bg-charcoal/5 px-4 py-3 text-sm text-charcoal/70">
                   Generated from: &quot;{generatedPrompt || prompt}&quot;
                 </p>
-              </div>
-
-              {/* priorities + savings */}
-              <div className="grid gap-6 sm:grid-cols-2">
-                <div className={`${cardBase} p-8`}>
-                  <h3 className="text-lg font-semibold text-charcoal">
-                    Priorities
-                  </h3>
-                  <ul className="mt-4 space-y-3 text-sm text-charcoal/70">
-                    {plan.priorities.map((item) => (
-                      <li key={item}>• {item}</li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className={`${cardBase} p-8`}>
-                  <h3 className="text-lg font-semibold text-charcoal">
-                    Ways to save
-                  </h3>
-                  <ul className="mt-4 space-y-3 text-sm text-charcoal/70">
-                    {plan.savings.map((item) => (
-                      <li key={item}>• {item}</li>
-                    ))}
-                  </ul>
-                </div>
               </div>
 
               {/* alerts */}

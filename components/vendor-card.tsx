@@ -33,21 +33,21 @@ export function VendorCard({
             />
           </div>
           <div className="absolute inset-0 bg-gradient-to-t from-charcoal/72 via-charcoal/0 to-charcoal/10 opacity-90" />
-          <div className="absolute left-4 top-4 rounded-full bg-white/92 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-charcoal shadow-sm backdrop-blur">
+          <div className="absolute left-3 right-3 top-3 w-max max-w-[calc(100%-1.5rem)] truncate rounded-full bg-white/92 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-charcoal shadow-sm backdrop-blur sm:left-4 sm:right-auto sm:top-4 sm:max-w-[calc(100%-2rem)] sm:text-[11px] sm:tracking-[0.18em]">
             {categoryLabel}
           </div>
-          <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3 text-white">
-            <div>
+          <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-3 text-white sm:bottom-4 sm:left-4 sm:right-4">
+            <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/70">From</p>
-              <p className="text-2xl font-semibold">{money(vendor.startingPrice)}</p>
+              <p className="text-xl font-semibold sm:text-2xl">{money(vendor.startingPrice)}</p>
             </div>
-            <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-charcoal">{vendor.budgetFit}</span>
+            <span className="max-w-[8rem] shrink-0 truncate rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-charcoal">{vendor.budgetFit}</span>
           </div>
         </div>
 
-        <div className="space-y-5 p-5">
+        <div className="space-y-4 p-4 sm:space-y-5 sm:p-5">
           <div>
-            <p className="text-xl font-semibold leading-tight text-charcoal transition group-hover:text-rose">
+            <p className="text-lg font-semibold leading-tight text-charcoal transition group-hover:text-rose sm:text-xl">
               {vendor.name}
             </p>
             {vendor.category === "Venues" && vendor.venueSubcategory ? (
@@ -60,18 +60,18 @@ export function VendorCard({
             <p className="flex min-w-0 items-center gap-2">
               <MapPin size={15} className="shrink-0 text-rose" /> <span className="truncate">{vendor.location}</span>
             </p>
-            <p className="flex items-center gap-2">
+            <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
               {vendor.reviewCount > 0 ? (
                 <>
-                  <Star className="fill-gold text-gold" size={16} /> <span className="font-semibold text-charcoal">{vendor.rating}</span> <span>({vendor.reviewCount} reviews)</span>
+                  <Star className="shrink-0 fill-gold text-gold" size={16} /> <span className="font-semibold text-charcoal">{vendor.rating}</span> <span>({vendor.reviewCount} reviews)</span>
                 </>
               ) : (
                 <span className="font-semibold text-charcoal/55">No reviews yet</span>
               )}
             </p>
             {vendor.availability ? (
-              <p className="flex items-center gap-2">
-                <CalendarCheck size={15} className="text-sage" /> {vendor.availability} availability
+              <p className="flex min-w-0 items-center gap-2">
+                <CalendarCheck size={15} className="shrink-0 text-sage" /> <span className="min-w-0 truncate">{vendor.availability} availability</span>
               </p>
             ) : null}
           </div>

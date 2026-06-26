@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { ArrowUpRight, BadgeCheck, Filter, MapPin, Search, SlidersHorizontal, Sparkles } from "lucide-react";
+import { ArrowUpRight, BadgeCheck, ChevronDown, Filter, MapPin, Search, SlidersHorizontal, Sparkles } from "lucide-react";
 import { VendorCard } from "@/components/vendor-card";
 import { Section } from "@/components/ui";
 import { money } from "@/lib/budget";
@@ -35,6 +35,7 @@ function VendorsMarketplace() {
   const [budgetFit, setBudgetFit] = useState("All");
   const [marketplaceVendors, setMarketplaceVendors] = useState<Vendor[]>(sampleVendors);
   const [isLoadingVendors, setIsLoadingVendors] = useState(true);
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const cityOptions = useMemo(() => citiesForState(state), [state]);
   const searchLocation = formatLocation(city, state);
   const categoryOptions = useMemo(() => Array.from(new Set([...categories, ...marketplaceVendors.map((vendor) => vendor.category)])), [marketplaceVendors]);
@@ -152,43 +153,53 @@ function VendorsMarketplace() {
     ? Math.round(filtered.reduce((total, vendor) => total + vendor.startingPrice, 0) / filtered.length)
     : 0;
   const topRatedCount = filtered.filter((vendor) => vendor.rating >= 4.8).length;
+  const resetFilters = () => {
+    setCategory("All");
+    setVenueSubcategory("All");
+    setState("");
+    setCity("");
+    setRadius(25);
+    setMaxPrice(10000);
+    setRating(0);
+    setBudgetFit("All");
+  };
 
   return (
     <main className="min-h-screen bg-[#fbf7ef] text-charcoal">
-      <Section className="space-y-8 pb-20 pt-8 sm:pt-10">
+      <Section className="space-y-5 pb-12 pt-4 sm:space-y-8 sm:pb-20 sm:pt-10">
         <div className="overflow-hidden rounded-[8px] border border-champagne/45 bg-white shadow-[0_30px_90px_-55px_rgba(45,42,39,0.45)]">
-          <div className="grid min-h-[460px] lg:grid-cols-[0.92fr_1.08fr]">
-            <div className="flex flex-col justify-between gap-10 px-6 py-8 sm:px-10 sm:py-10 lg:px-12">
+          <div className="grid lg:min-h-[460px] lg:grid-cols-[0.92fr_1.08fr]">
+            <div className="flex flex-col justify-between gap-7 px-5 py-6 sm:gap-10 sm:px-10 sm:py-10 lg:px-12">
               <div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-champagne/60 bg-ivory px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-charcoal/70">
+                <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-champagne/60 bg-ivory px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-charcoal/70 sm:text-xs sm:tracking-[0.16em]">
                   <Sparkles size={14} className="text-rose" />
                   Vendor marketplace
                 </div>
-                <h1 className="mt-5 font-serif text-4xl font-semibold leading-tight text-charcoal sm:text-5xl lg:text-6xl">
+                <h1 className="mt-4 font-serif text-3xl font-semibold leading-tight text-charcoal sm:mt-5 sm:text-5xl lg:text-6xl">
                   Find the team behind your wedding day.
                 </h1>
-                <p className="mt-6 max-w-xl text-base leading-8 text-charcoal/72">
+                <p className="mt-4 max-w-xl text-sm leading-7 text-charcoal/72 sm:mt-6 sm:text-base sm:leading-8">
                   Compare trusted venues, creatives, planners, and party makers with clear starting prices and budget-fit signals before you send a single inquiry.
                 </p>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div className="border-t border-champagne/60 pt-4">
-                  <p className="text-3xl font-semibold text-charcoal">{filtered.length}</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-charcoal/50">Matches</p>
+                  <p className="text-2xl font-semibold text-charcoal sm:text-3xl">{filtered.length}</p>
+                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-charcoal/50 sm:text-xs sm:tracking-[0.16em]">Matches</p>
                 </div>
                 <div className="border-t border-champagne/60 pt-4">
-                  <p className="text-3xl font-semibold text-charcoal">{categoryCount}</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-charcoal/50">Categories</p>
+                  <p className="text-2xl font-semibold text-charcoal sm:text-3xl">{categoryCount}</p>
+                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-charcoal/50 sm:text-xs sm:tracking-[0.16em]">Categories</p>
                 </div>
                 <div className="border-t border-champagne/60 pt-4">
-                  <p className="text-3xl font-semibold text-charcoal">{topRatedCount}</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-charcoal/50">Top rated</p>
+                  <p className="text-2xl font-semibold text-charcoal sm:text-3xl">{topRatedCount}</p>
+                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-charcoal/50 sm:text-xs sm:tracking-[0.16em]">Top rated</p>
                 </div>
               </div>
             </div>
 
-            <div className="relative min-h-[360px] overflow-hidden lg:min-h-full">
+            <div className="relative min-h-[260px] overflow-hidden sm:min-h-[360px] lg:min-h-full">
               <Image
                 src={featuredVendor.image}
                 alt={featuredVendor.name}
@@ -198,21 +209,21 @@ function VendorsMarketplace() {
                 className="object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-charcoal/82 via-charcoal/22 to-transparent" />
-              <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7">
+              <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-7">
                 <div className="max-w-md">
-                  <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/82">
+                  <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/82 sm:text-xs sm:tracking-[0.18em]">
                     <BadgeCheck size={14} />
                     Featured match
                   </p>
-                  <div className="mt-3 flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-2xl font-semibold leading-tight text-white drop-shadow-sm">{featuredVendor.name}</p>
+                  <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                    <div className="min-w-0">
+                      <p className="text-xl font-semibold leading-tight text-white drop-shadow-sm sm:text-2xl">{featuredVendor.name}</p>
                       <p className="mt-2 flex items-center gap-2 text-sm text-white/80">
-                        <MapPin size={15} />
+                        <MapPin size={15} className="shrink-0" />
                         {featuredVendor.location}
                       </p>
                     </div>
-                    <span className="rounded-full border border-white/30 bg-white/12 px-3 py-1 text-xs font-bold text-white backdrop-blur-sm">{money(featuredVendor.startingPrice)}</span>
+                    <span className="w-max rounded-full border border-white/30 bg-white/12 px-3 py-1 text-xs font-bold text-white backdrop-blur-sm">{money(featuredVendor.startingPrice)}</span>
                   </div>
                 </div>
               </div>
@@ -220,11 +231,11 @@ function VendorsMarketplace() {
           </div>
         </div>
 
-        <div className="flex gap-3 overflow-x-auto pb-1 pl-4 pr-6 scrollbar-hidden sm:pl-0">
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-hidden sm:mx-0 sm:gap-3 sm:px-0">
           <button
             type="button"
             onClick={() => setCategory("All")}
-            className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${category === "All" ? "border-charcoal bg-charcoal text-white" : "border-champagne bg-white text-charcoal/75 hover:border-charcoal/40"}`}
+            className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold transition sm:px-4 ${category === "All" ? "border-charcoal bg-charcoal text-white" : "border-champagne bg-white text-charcoal/75 hover:border-charcoal/40"}`}
           >
             All vendors
           </button>
@@ -233,7 +244,7 @@ function VendorsMarketplace() {
               key={item}
               type="button"
               onClick={() => setCategory(item)}
-              className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${category === item ? "border-transparent shadow-soft " + (categoryAccent[item] ?? "bg-rose text-white") : "border-champagne bg-white text-charcoal/75 hover:border-charcoal/40"}`}
+              className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold transition sm:px-4 ${category === item ? "border-transparent shadow-soft " + (categoryAccent[item] ?? "bg-rose text-white") : "border-champagne bg-white text-charcoal/75 hover:border-charcoal/40"}`}
             >
               {item}
             </button>
@@ -241,7 +252,24 @@ function VendorsMarketplace() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[20rem_1fr] lg:items-start">
-          <aside className="h-max rounded-[8px] border border-champagne/50 bg-white px-5 py-5 shadow-[0_24px_70px_-55px_rgba(45,42,39,0.42)] lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-4">
+          <button
+            type="button"
+            className="flex items-center justify-between rounded-[8px] border border-champagne/50 bg-white px-4 py-3 text-sm font-semibold text-charcoal shadow-sm lg:hidden"
+            onClick={() => setIsMobileFiltersOpen((current) => !current)}
+            aria-expanded={isMobileFiltersOpen}
+            aria-controls="vendor-filters"
+          >
+            <span className="inline-flex items-center gap-2">
+              <SlidersHorizontal size={16} />
+              Refine results
+            </span>
+            <span className="inline-flex items-center gap-2 text-charcoal/60">
+              {filtered.length}
+              <ChevronDown size={17} className={`transition ${isMobileFiltersOpen ? "rotate-180" : ""}`} />
+            </span>
+          </button>
+
+          <aside id="vendor-filters" className={`${isMobileFiltersOpen ? "block" : "hidden"} h-max rounded-[8px] border border-champagne/50 bg-white px-4 py-4 shadow-[0_24px_70px_-55px_rgba(45,42,39,0.42)] sm:px-5 sm:py-5 lg:sticky lg:top-24 lg:block lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-4`}>
             <div className="mb-5 flex items-center justify-between border-b border-champagne/45 pb-4">
               <div>
                 <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.16em] text-charcoal/70">
@@ -351,10 +379,10 @@ function VendorsMarketplace() {
             </div>
           </aside>
 
-          <div>
+          <div className="min-w-0">
             <div className="mb-4 rounded-[8px] border border-champagne/45 bg-white px-5 py-4 shadow-sm">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm font-semibold text-charcoal">
                     {category === "Venues" && venueSubcategory !== "All" ? venueSubcategory : category === "All" ? "All vendor categories" : category}
                   </p>
@@ -368,7 +396,7 @@ function VendorsMarketplace() {
                         : "Sorted for fast comparison and budget confidence."}
                   </p>
                 </div>
-                <span className="inline-flex items-center gap-2 rounded-full bg-charcoal px-4 py-2 text-sm font-semibold text-white">
+                <span className="inline-flex w-max items-center gap-2 rounded-full bg-charcoal px-4 py-2 text-sm font-semibold text-white">
                   <Filter size={16} /> {filtered.length} matches
                 </span>
               </div>
@@ -389,16 +417,7 @@ function VendorsMarketplace() {
               ) : (
                 <div className="rounded-[8px] border border-champagne/35 bg-white p-8 text-sm text-charcoal/65 sm:col-span-2 xl:col-span-3">
                   <p className="text-lg font-semibold text-charcoal">No vendors match these filters yet.</p>
-                  <button type="button" onClick={() => {
-                    setCategory("All");
-                    setVenueSubcategory("All");
-                    setState("");
-                    setCity("");
-                    setRadius(25);
-                    setMaxPrice(10000);
-                    setRating(0);
-                    setBudgetFit("All");
-                  }} className="mt-4 inline-flex items-center gap-2 rounded-full bg-charcoal px-4 py-2 text-sm font-semibold text-white transition hover:bg-black">
+                  <button type="button" onClick={resetFilters} className="mt-4 inline-flex items-center gap-2 rounded-full bg-charcoal px-4 py-2 text-sm font-semibold text-white transition hover:bg-black">
                     Reset filters <ArrowUpRight size={15} />
                   </button>
                 </div>
