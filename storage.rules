@@ -1,0 +1,21 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    match /vendors/{vendorId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if signedIn() && (
+        request.auth.uid == vendorId ||
+        firestore.get(/databases/(default)/documents/vendors/$(vendorId)).data.ownerUid == request.auth.uid
+      );
+    }
+
+    match /couples/{coupleId}/{allPaths=**} {
+      allow read, write: if signedIn() && request.auth.uid == coupleId;
+    }
+  }
+}

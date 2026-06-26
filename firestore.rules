@@ -1,0 +1,110 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    match /users/{uid} {
+      allow read, create, update: if isOwner(uid);
+      allow delete: if false;
+    }
+
+    match /couples/{coupleId} {
+      allow read, create, update: if isOwner(coupleId);
+      allow delete: if false;
+
+      match /{document=**} {
+        allow read, write: if isOwner(coupleId);
+      }
+    }
+
+    match /vendors/{vendorId} {
+      allow read: if true;
+      allow create: if signedIn() &&
+        request.resource.data.ownerUid == request.auth.uid;
+      allow update: if signedIn() &&
+        resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if signedIn() &&
+        resource.data.ownerUid == request.auth.uid;
+
+      match /{document=**} {
+        allow read: if true;
+        allow write: if signedIn() &&
+          get(/databases/$(database)/documents/vendors/$(vendorId)).data.ownerUid == request.auth.uid;
+      }
+    }
+
+    match /quoteRequests/{requestId} {
+      allow create: if signedIn();
+      allow read, update: if signedIn() &&
+        (resource.data.coupleUid == request.auth.uid || resource.data.vendorUid == request.auth.uid);
+      allow delete: if false;
+    }
+
+    match /budgets/{uid} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid) &&
+        request.resource.data.ownerUid == request.auth.uid;
+      allow delete: if false;
+    }
+
+    match /bookings/{bookingId} {
+      allow create: if signedIn() &&
+        request.resource.data.ownerUid == request.auth.uid;
+      allow read, delete: if signedIn() &&
+        resource.data.ownerUid == request.auth.uid;
+      allow update: if signedIn() &&
+        resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.ownerUid == resource.data.ownerUid;
+    }
+
+    match /conversations/{conversationId} {
+      function isParticipant(data) {
+        return signedIn() && (
+          data.coupleId == request.auth.uid ||
+          data.vendorOwnerUid == request.auth.uid ||
+          data.vendorId == request.auth.uid
+        );
+      }
+
+      allow create: if isParticipant(request.resource.data);
+      allow read, update: if isParticipant(resource.data);
+      allow delete: if false;
+    }
+
+    match /messages/{messageId} {
+      function conversationPath(conversationId) {
+        return /databases/$(database)/documents/conversations/$(conversationId);
+      }
+
+      function isConversationParticipant(conversationId) {
+        return signedIn() &&
+          exists(conversationPath(conversationId)) &&
+          (
+            get(conversationPath(conversationId)).data.coupleId == request.auth.uid ||
+            get(conversationPath(conversationId)).data.vendorOwnerUid == request.auth.uid ||
+            get(conversationPath(conversationId)).data.vendorId == request.auth.uid
+          );
+      }
+
+      allow create: if signedIn() &&
+        request.resource.data.senderId == request.auth.uid &&
+        isConversationParticipant(request.resource.data.conversationId);
+      allow read, update: if isConversationParticipant(resource.data.conversationId);
+      allow delete: if false;
+    }
+
+    match /vendorReviews/{reviewId} {
+      allow read: if true;
+      allow create: if signedIn();
+      allow update, delete: if false;
+    }
+  }
+}
