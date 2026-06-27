@@ -62,7 +62,11 @@ export function AppNav() {
   const [profileMessage, setProfileMessage] = useState("");
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isVendorMenuOpen, setIsVendorMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
+  const vendorMenuRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
 
   function unreadForAccount(conversation: Conversation, nextAccount: AccountRecord) {
     const role = nextAccount.roles.vendor ? "vendor" : "couple";
@@ -140,7 +144,7 @@ export function AppNav() {
   }, [account]);
 
   useEffect(() => {
-    if (!isProfileOpen && !isMobileMenuOpen) return;
+    if (!isProfileOpen && !isMobileMenuOpen && !isVendorMenuOpen) return;
 
     function handlePointerDown(event: PointerEvent) {
       if (
@@ -149,12 +153,30 @@ export function AppNav() {
       ) {
         setIsProfileOpen(false);
       }
+
+      if (
+        isVendorMenuOpen &&
+        !vendorMenuRef.current?.contains(event.target as Node) &&
+        !mobileMenuRef.current?.contains(event.target as Node)
+      ) {
+        setIsVendorMenuOpen(false);
+      }
+
+      if (
+        isMobileMenuOpen &&
+        !mobileMenuRef.current?.contains(event.target as Node) &&
+        !mobileMenuButtonRef.current?.contains(event.target as Node)
+      ) {
+        setIsMobileMenuOpen(false);
+        setIsVendorMenuOpen(false);
+      }
     }
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setIsProfileOpen(false);
         setIsMobileMenuOpen(false);
+        setIsVendorMenuOpen(false);
       }
     }
 
@@ -165,7 +187,7 @@ export function AppNav() {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isProfileOpen, isMobileMenuOpen]);
+  }, [isProfileOpen, isMobileMenuOpen, isVendorMenuOpen]);
 
   const displayName = formatCoupleName(
     profile?.name || account?.name,
@@ -240,35 +262,70 @@ export function AppNav() {
           <Link
             href="/"
             className="rounded-full px-4 py-2 text-sm font-medium text-charcoal/75 transition duration-200 hover:-translate-y-0.5 hover:bg-white/75 hover:text-charcoal"
+            onClick={() => setIsVendorMenuOpen(false)}
           >
             Home
           </Link>
-          <div className="group relative">
-            <Link
-              href="/vendors"
-              className="inline-flex rounded-full px-4 py-2 text-sm font-medium text-charcoal/75 transition duration-200 hover:-translate-y-0.5 hover:bg-white/75 hover:text-charcoal"
+          <div
+            className="relative"
+            ref={vendorMenuRef}
+            onMouseEnter={() => {
+              setIsProfileOpen(false);
+              setIsVendorMenuOpen(true);
+            }}
+            onMouseLeave={() => setIsVendorMenuOpen(false)}
+            onFocus={() => {
+              setIsProfileOpen(false);
+              setIsVendorMenuOpen(true);
+            }}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) {
+                setIsVendorMenuOpen(false);
+              }
+            }}
+          >
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm font-medium text-charcoal/75 transition duration-200 hover:-translate-y-0.5 hover:bg-white/75 hover:text-charcoal"
+              onClick={() => {
+                setIsProfileOpen(false);
+                setIsVendorMenuOpen((current) => !current);
+              }}
+              aria-expanded={isVendorMenuOpen}
+              aria-controls="desktop-vendors-submenu"
             >
               Vendors
-            </Link>
-            <div className="invisible absolute left-0 top-full z-50 w-64 translate-y-1 pt-3 opacity-0 transition duration-150 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">
-              <div className="grid max-h-[calc(100vh-5rem)] gap-1 overflow-y-auto rounded-[8px] border border-champagne/50 bg-white/95 p-2 shadow-[0_18px_48px_-42px_rgba(45,42,39,0.55)] backdrop-blur-xl">
-                {vendorMenuLinks.map(([label, href]) => (
-                  <Link
-                    key={href}
-                    href={href}
-                    className="rounded-[8px] px-3 py-2 text-sm font-semibold text-charcoal/68 transition duration-200 hover:bg-ivory hover:text-charcoal"
-                  >
-                    {label}
-                  </Link>
-                ))}
+              <ChevronDown
+                size={14}
+                className={`transition ${isVendorMenuOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+            {isVendorMenuOpen && (
+              <div
+                id="desktop-vendors-submenu"
+                className="absolute left-0 top-full z-50 w-64 pt-3 motion-safe:duration-150 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1"
+              >
+                <div className="grid max-h-[calc(100vh-5rem)] gap-1 overflow-y-auto rounded-[8px] border border-champagne/50 bg-white/95 p-2 shadow-[0_18px_48px_-42px_rgba(45,42,39,0.55)] backdrop-blur-xl">
+                  {vendorMenuLinks.map(([label, href]) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      className="rounded-[8px] px-3 py-2 text-sm font-semibold text-charcoal/68 transition duration-200 hover:bg-ivory hover:text-charcoal"
+                      onClick={() => setIsVendorMenuOpen(false)}
+                    >
+                      {label}
+                    </Link>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
           {links.map(([label, href]) => (
             <Link
               key={href}
               href={href}
               className="rounded-full px-4 py-2 text-sm font-medium text-charcoal/75 transition duration-200 hover:-translate-y-0.5 hover:bg-white/75 hover:text-charcoal"
+              onClick={() => setIsVendorMenuOpen(false)}
             >
               {label}
             </Link>
@@ -277,16 +334,18 @@ export function AppNav() {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            ref={mobileMenuButtonRef}
             className="grid h-10 w-10 place-items-center rounded-full bg-white text-charcoal shadow-sm ring-1 ring-champagne/70 transition duration-200 hover:-translate-y-0.5 hover:bg-ivory active:scale-95 lg:hidden"
             onClick={() => {
               setIsProfileOpen(false);
+              setIsVendorMenuOpen(false);
               setIsMobileMenuOpen((current) => !current);
             }}
             aria-label="Open menu"
             aria-expanded={isMobileMenuOpen}
             aria-controls="mobile-navigation"
           >
-            {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            <Menu size={20} />
           </button>
           {account ? (
             <div className="relative" ref={profileMenuRef}>
@@ -295,6 +354,7 @@ export function AppNav() {
                 className="flex items-center gap-2 rounded-full bg-white px-2 py-1.5 text-sm font-bold text-charcoal shadow-sm ring-1 ring-champagne/70 transition duration-200 hover:-translate-y-0.5 hover:bg-ivory active:scale-[0.98]"
                 onClick={() => {
                   setIsMobileMenuOpen(false);
+                  setIsVendorMenuOpen(false);
                   setIsProfileOpen(!isProfileOpen);
                 }}
                 aria-expanded={isProfileOpen}
@@ -476,41 +536,58 @@ export function AppNav() {
       {isMobileMenuOpen && (
         <div
           id="mobile-navigation"
+          ref={mobileMenuRef}
           className="bg-ivory/96 max-h-[calc(100vh-4rem)] overflow-y-auto overscroll-contain border-t border-champagne/45 px-4 py-3 shadow-soft motion-safe:duration-200 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2 lg:hidden"
         >
           <div className="mx-auto grid max-w-7xl gap-1">
             <Link
               href="/"
               className="rounded-[8px] px-3 py-3 text-sm font-semibold text-charcoal/75 transition duration-200 hover:translate-x-0.5 hover:bg-white/80 hover:text-charcoal"
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                setIsVendorMenuOpen(false);
+              }}
             >
               Home
             </Link>
-            <Link
-              href="/vendors"
-              className="rounded-[8px] px-3 py-3 text-sm font-semibold text-charcoal/75 transition duration-200 hover:translate-x-0.5 hover:bg-white/80 hover:text-charcoal"
-              onClick={() => setIsMobileMenuOpen(false)}
+            <button
+              type="button"
+              className="rounded-[8px] px-3 py-3 text-left text-sm font-semibold text-charcoal/75 transition duration-200 hover:translate-x-0.5 hover:bg-white/80 hover:text-charcoal"
+              onClick={() => setIsVendorMenuOpen((current) => !current)}
+              aria-expanded={isVendorMenuOpen}
+              aria-controls="mobile-vendors-submenu"
             >
               Vendors
-            </Link>
-            <div className="mx-3 grid gap-1 border-y border-white/80 bg-white/90 px-3 py-2 backdrop-blur-xl">
-              {vendorMenuLinks.map(([label, href]) => (
-                <Link
-                  key={href}
-                  href={href}
-                  className="rounded-[8px] px-3 py-2 text-sm font-semibold text-charcoal/68 transition duration-200 hover:bg-ivory hover:text-charcoal"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  {label}
-                </Link>
-              ))}
-            </div>
+            </button>
+            {isVendorMenuOpen && (
+              <div
+                id="mobile-vendors-submenu"
+                className="mx-3 grid gap-1 border-y border-white/80 bg-white/90 px-3 py-2 backdrop-blur-xl"
+              >
+                {vendorMenuLinks.map(([label, href]) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    className="rounded-[8px] px-3 py-2 text-sm font-semibold text-charcoal/68 transition duration-200 hover:bg-ivory hover:text-charcoal"
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      setIsVendorMenuOpen(false);
+                    }}
+                  >
+                    {label}
+                  </Link>
+                ))}
+              </div>
+            )}
             {links.map(([label, href]) => (
               <Link
                 key={href}
                 href={href}
                 className="rounded-[8px] px-3 py-3 text-sm font-semibold text-charcoal/75 transition duration-200 hover:translate-x-0.5 hover:bg-white/80 hover:text-charcoal"
-                onClick={() => setIsMobileMenuOpen(false)}
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setIsVendorMenuOpen(false);
+                }}
               >
                 {!account && href === "/budget" ? "Start Planning" : label}
               </Link>
@@ -519,7 +596,10 @@ export function AppNav() {
               <Link
                 href="/sign-in"
                 className="rounded-[8px] px-3 py-3 text-sm font-semibold text-charcoal/75 transition duration-200 hover:translate-x-0.5 hover:bg-white/80 hover:text-charcoal sm:hidden"
-                onClick={() => setIsMobileMenuOpen(false)}
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setIsVendorMenuOpen(false);
+                }}
               >
                 Sign in
               </Link>
