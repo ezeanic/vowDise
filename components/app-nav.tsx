@@ -236,7 +236,7 @@ export function AppNav() {
           />
           Vowdise
         </Link>
-        <div className="hidden items-center gap-1 md:flex">
+        <div className="hidden items-center gap-1 lg:flex">
           <Link
             href="/"
             className="rounded-full px-4 py-2 text-sm font-medium text-charcoal/75 transition duration-200 hover:-translate-y-0.5 hover:bg-white/75 hover:text-charcoal"
@@ -250,13 +250,13 @@ export function AppNav() {
             >
               Vendors
             </Link>
-            <div className="invisible absolute left-1/2 top-full z-50 w-[min(56rem,calc(100vw-2rem))] -translate-x-1/2 translate-y-1 pt-3 opacity-0 transition duration-150 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">
-              <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 border-y border-white/80 bg-white/90 px-4 py-3 shadow-[0_18px_48px_-42px_rgba(45,42,39,0.55)] backdrop-blur-xl">
+            <div className="invisible absolute left-0 top-full z-50 w-64 translate-y-1 pt-3 opacity-0 transition duration-150 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">
+              <div className="grid max-h-[calc(100vh-5rem)] gap-1 overflow-y-auto rounded-[8px] border border-champagne/50 bg-white/95 p-2 shadow-[0_18px_48px_-42px_rgba(45,42,39,0.55)] backdrop-blur-xl">
                 {vendorMenuLinks.map(([label, href]) => (
                   <Link
                     key={href}
                     href={href}
-                    className="px-1 py-1.5 text-sm font-semibold text-charcoal/68 transition duration-200 hover:text-charcoal"
+                    className="rounded-[8px] px-3 py-2 text-sm font-semibold text-charcoal/68 transition duration-200 hover:bg-ivory hover:text-charcoal"
                   >
                     {label}
                   </Link>
@@ -277,7 +277,7 @@ export function AppNav() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="grid h-10 w-10 place-items-center rounded-full bg-white text-charcoal shadow-sm ring-1 ring-champagne/70 transition duration-200 hover:-translate-y-0.5 hover:bg-ivory active:scale-95 md:hidden"
+            className="grid h-10 w-10 place-items-center rounded-full bg-white text-charcoal shadow-sm ring-1 ring-champagne/70 transition duration-200 hover:-translate-y-0.5 hover:bg-ivory active:scale-95 lg:hidden"
             onClick={() => {
               setIsProfileOpen(false);
               setIsMobileMenuOpen((current) => !current);
@@ -465,7 +465,7 @@ export function AppNav() {
               </Link>
               <LinkButton
                 href="/budget"
-                className="hidden px-4 py-2 md:inline-flex"
+                className="hidden px-4 py-2 lg:inline-flex"
               >
                 Start Planning
               </LinkButton>
@@ -476,7 +476,7 @@ export function AppNav() {
       {isMobileMenuOpen && (
         <div
           id="mobile-navigation"
-          className="bg-ivory/96 border-t border-champagne/45 px-4 py-3 shadow-soft motion-safe:duration-200 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2 md:hidden"
+          className="bg-ivory/96 max-h-[calc(100vh-4rem)] overflow-y-auto overscroll-contain border-t border-champagne/45 px-4 py-3 shadow-soft motion-safe:duration-200 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2 lg:hidden"
         >
           <div className="mx-auto grid max-w-7xl gap-1">
             <Link
@@ -493,12 +493,12 @@ export function AppNav() {
             >
               Vendors
             </Link>
-            <div className="mx-3 flex flex-wrap gap-x-4 gap-y-2 border-y border-white/80 bg-white/90 px-3 py-2 backdrop-blur-xl">
+            <div className="mx-3 grid gap-1 border-y border-white/80 bg-white/90 px-3 py-2 backdrop-blur-xl">
               {vendorMenuLinks.map(([label, href]) => (
                 <Link
                   key={href}
                   href={href}
-                  className="px-1 py-1.5 text-sm font-semibold text-charcoal/68 transition duration-200 hover:text-charcoal"
+                  className="rounded-[8px] px-3 py-2 text-sm font-semibold text-charcoal/68 transition duration-200 hover:bg-ivory hover:text-charcoal"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   {label}

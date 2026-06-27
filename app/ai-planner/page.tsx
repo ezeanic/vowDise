@@ -181,7 +181,7 @@ export default function AiPlannerPage() {
           <div className="grid gap-8 lg:grid-cols-[1fr_0.9fr]">
             <div className="space-y-4">
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-charcoal/60">
-                Describe your celebration
+                Describe your wedding
               </p>
 
               <textarea
