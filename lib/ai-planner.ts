@@ -35,6 +35,15 @@ export type VendorMatch = {
   status?: VendorBooking["status"];
 };
 
+export type PlanPreferences = {
+  priorityCategories: VendorCategory[];
+  skippedCategories: VendorCategory[];
+  mustHaveTerms: string[];
+  avoidTerms: string[];
+  vibeTags: string[];
+  constraints: string[];
+};
+
 type PlanSignals = {
   outdoor: boolean;
   foodFocused: boolean;
@@ -47,6 +56,20 @@ type PlanSignals = {
   beautyFocused: boolean;
   budgetFocused: boolean;
 };
+
+const scoreWeights = {
+  base: 36,
+  priorityCategory: 24,
+  missingCategory: 9,
+  existingBooking: 18,
+  bookedCategoryPenalty: -30,
+  skippedCategoryPenalty: -48,
+  packageFit: 10,
+  contentMatch: 10,
+  contentAvoidPenalty: -22,
+  budgetFocusedFit: 8,
+  outdoorRental: 4,
+} as const;
 
 const categoryLabels: Record<VendorCategory, string> = {
   Venues: "venue",
@@ -84,8 +107,9 @@ export function generatePlan(prompt: string, context: AiPlannerContext = {}) {
   const perGuest = totalBudget / guests;
   const location = extractLocation(prompt, profile);
   const locationPoint = coordinatesForValues(location);
-  const style = extractStyle(lower);
   const signals = extractSignals(lower);
+  const preferences = extractPreferences(lower, signals);
+  const style = extractStyle(lower, preferences);
   const budget = context.budget?.items?.length
     ? context.budget.items
     : buildBudget(totalBudget);
@@ -96,10 +120,14 @@ export function generatePlan(prompt: string, context: AiPlannerContext = {}) {
       )
       .map((booking) => booking.category),
   );
-  const activeCategorySet = new Set(bookings.map((booking) => booking.category));
-  const preferredCategories = preferredCategoriesFor(signals);
+  const activeCategorySet = new Set(
+    bookings.map((booking) => booking.category),
+  );
+  const preferredCategories = preferences.priorityCategories;
   const missingCategories = requiredCategoryOrder.filter(
-    (category) => !activeCategorySet.has(category),
+    (category) =>
+      !activeCategorySet.has(category) &&
+      !preferences.skippedCategories.includes(category),
   );
   const vendorMatches = scoreVendors({
     vendors: marketplaceVendors,
@@ -108,6 +136,7 @@ export function generatePlan(prompt: string, context: AiPlannerContext = {}) {
     bookedCategorySet,
     preferredCategories,
     missingCategories,
+    preferences,
     location,
     locationPoint,
     signals,
@@ -133,6 +162,7 @@ export function generatePlan(prompt: string, context: AiPlannerContext = {}) {
     perGuest,
     location: location.formattedLocation,
     style,
+    preferences,
     budget,
     priorities: buildPriorities(signals, {
       perGuest,
@@ -190,8 +220,7 @@ function extractGuests(prompt: string, profile: PlanProfile) {
   const guestMatch = prompt.match(/(\d{2,3})\s*(guests|people|person)/i);
   if (guestMatch) return Number(guestMatch[1]);
   const profileGuests = Number(profile.guests || profile.guestCount);
-  if (Number.isFinite(profileGuests) && profileGuests > 0)
-    return profileGuests;
+  if (Number.isFinite(profileGuests) && profileGuests > 0) return profileGuests;
   return 100;
 }
 
@@ -235,7 +264,10 @@ function extractLocation(prompt: string, profile: PlanProfile) {
   };
 }
 
-function extractStyle(lower: string) {
+function extractStyle(lower: string, preferences: PlanPreferences) {
+  if (preferences.vibeTags.includes("editorial")) return "editorial";
+  if (preferences.vibeTags.includes("casual")) return "casual";
+  if (preferences.vibeTags.includes("moody")) return "moody";
   if (/outdoor|garden|beach|vineyard/.test(lower)) return "outdoor";
   if (/modern|city|loft|minimal/.test(lower)) return "modern";
   if (/classic|traditional|ballroom|indoor/.test(lower)) return "classic";
@@ -260,6 +292,125 @@ function extractSignals(lower: string): PlanSignals {
   };
 }
 
+function extractPreferences(
+  lower: string,
+  signals: PlanSignals,
+): PlanPreferences {
+  const skippedCategories: VendorCategory[] = [];
+  const mustHaveTerms: string[] = [];
+  const avoidTerms: string[] = [];
+  const vibeTags: string[] = [];
+  const constraints: string[] = [];
+
+  const skipPatterns: Array<[VendorCategory, RegExp]> = [
+    [
+      "Videographers",
+      /\b(no|skip|without|do not need|don't need)\s+(video|videographer|film)\b/,
+    ],
+    ["DJs", /\b(no|skip|without|do not need|don't need)\s+(dj|music|dance)\b/],
+    [
+      "Florists",
+      /\b(no|skip|without|do not need|don't need)\s+(florals?|flowers?|florist)\b/,
+    ],
+    [
+      "Wedding Planners",
+      /\b(no|skip|without|do not need|don't need)\s+(planner|coordinator|coordination)\b/,
+    ],
+    [
+      "Cake Vendors",
+      /\b(no|skip|without|do not need|don't need)\s+(cake|dessert)\b/,
+    ],
+    [
+      "Makeup Artists",
+      /\b(no|skip|without|do not need|don't need)\s+(makeup|hair|beauty|glam)\b/,
+    ],
+  ];
+
+  skipPatterns.forEach(([category, pattern]) => {
+    if (pattern.test(lower)) skippedCategories.push(category);
+  });
+
+  addIf(mustHaveTerms, lower, /\bgarden|outdoor|ceremony lawn\b/, "garden");
+  addIf(mustHaveTerms, lower, /\bvineyard|winery\b/, "vineyard");
+  addIf(mustHaveTerms, lower, /\brooftop|loft|industrial\b/, "loft");
+  addIf(mustHaveTerms, lower, /\bbuffet\b/, "buffet");
+  addIf(mustHaveTerms, lower, /\bfamily[- ]style\b/, "family-style");
+  addIf(mustHaveTerms, lower, /\bplated\b/, "plated");
+  addIf(mustHaveTerms, lower, /\bceremony\s+and\s+reception\b/, "ceremony");
+  addIf(mustHaveTerms, lower, /\blow[- ]stress|calm|easy\b/, "coordination");
+  addIf(
+    mustHaveTerms,
+    lower,
+    /\bweekday|friday|sunday|brunch|off[- ]season\b/,
+    "flexible pricing",
+  );
+
+  addIf(
+    avoidTerms,
+    lower,
+    /\bno\s+ballroom|avoid\s+ballroom|not\s+.*ballroom\b/,
+    "ballroom",
+  );
+  addIf(
+    avoidTerms,
+    lower,
+    /\bno\s+banquet|avoid\s+banquet|not\s+.*banquet\b/,
+    "banquet",
+  );
+  addIf(avoidTerms, lower, /\bno\s+hotel|avoid\s+hotel\b/, "hotel");
+  addIf(
+    avoidTerms,
+    lower,
+    /\bno\s+traditional|avoid\s+traditional|not\s+traditional\b/,
+    "traditional",
+  );
+  addIf(avoidTerms, lower, /\bnot\s+too\s+formal|casual\b/, "formal");
+  addIf(
+    avoidTerms,
+    lower,
+    /\bavoid\s+expensive|not\s+expensive|keep\s+.*cheap\b/,
+    "premium",
+  );
+
+  addIf(vibeTags, lower, /\beditorial|fashion\b/, "editorial");
+  addIf(
+    vibeTags,
+    lower,
+    /\bdocumentary|candid|photojournalistic\b/,
+    "documentary",
+  );
+  addIf(vibeTags, lower, /\bmoody|candlelit|dramatic\b/, "moody");
+  addIf(vibeTags, lower, /\bcasual|relaxed|laid[- ]back\b/, "casual");
+  addIf(vibeTags, lower, /\bluxe|luxury|elevated|premium\b/, "elevated");
+  addIf(vibeTags, lower, /\bminimal|modern|clean\b/, "modern");
+  addIf(vibeTags, lower, /\bclassic|timeless|traditional\b/, "classic");
+  addIf(vibeTags, lower, /\bparty|dance|nightlife\b/, "party");
+
+  if (signals.budgetFocused) constraints.push("budget-conscious");
+  if (signals.outdoor) constraints.push("weather backup");
+  if (/\baccessible|wheelchair|mobility\b/.test(lower))
+    constraints.push("accessibility");
+  if (/\bkids|children|family-friendly\b/.test(lower))
+    constraints.push("family-friendly");
+  if (/\bvegan|vegetarian|halal|kosher|gluten[- ]free\b/.test(lower))
+    constraints.push("dietary needs");
+
+  return {
+    priorityCategories: preferredCategoriesFor(signals).filter(
+      (category) => !skippedCategories.includes(category),
+    ),
+    skippedCategories,
+    mustHaveTerms,
+    avoidTerms,
+    vibeTags,
+    constraints,
+  };
+}
+
+function addIf(list: string[], text: string, pattern: RegExp, value: string) {
+  if (pattern.test(text) && !list.includes(value)) list.push(value);
+}
+
 function preferredCategoriesFor(signals: PlanSignals) {
   const preferred: VendorCategory[] = ["Venues"];
   if (signals.foodFocused) preferred.push("Caterers");
@@ -280,6 +431,7 @@ function scoreVendors({
   bookedCategorySet,
   preferredCategories,
   missingCategories,
+  preferences,
   location,
   locationPoint,
   signals,
@@ -290,6 +442,7 @@ function scoreVendors({
   bookedCategorySet: Set<VendorCategory>;
   preferredCategories: VendorCategory[];
   missingCategories: VendorCategory[];
+  preferences: PlanPreferences;
   location: { city?: string; state?: string; formattedLocation: string };
   locationPoint: { lat: number; lng: number } | null;
   signals: PlanSignals;
@@ -307,37 +460,57 @@ function scoreVendors({
       const budgetTarget = targetByCategory.get(budgetCategory) ?? 0;
       const existingBooking = bookingByVendor.get(vendor.id);
       const scoreReasons: string[] = [];
-      let score = 40;
+      let score = scoreWeights.base;
 
       if (preferredCategories.includes(vendor.category)) {
-        score += 22;
-        scoreReasons.push(`Matches your ${categoryLabels[vendor.category]} focus`);
+        score += scoreWeights.priorityCategory;
+        scoreReasons.push(
+          `Matches your ${categoryLabels[vendor.category]} focus`,
+        );
       }
 
       if (missingCategories.includes(vendor.category)) {
-        score += 10;
-        scoreReasons.push(`Fills an open ${categoryLabels[vendor.category]} need`);
+        score += scoreWeights.missingCategory;
+        scoreReasons.push(
+          `Fills an open ${categoryLabels[vendor.category]} need`,
+        );
       }
 
       if (existingBooking) {
-        score += 16;
-        scoreReasons.push(`Already ${statusLabel(existingBooking.status)} in your plan`);
+        score += scoreWeights.existingBooking;
+        scoreReasons.push(
+          `Already ${statusLabel(existingBooking.status)} in your plan`,
+        );
       } else if (bookedCategorySet.has(vendor.category)) {
-        score -= 28;
-        scoreReasons.push(`Lower priority because ${categoryLabels[vendor.category]} is already booked`);
+        score += scoreWeights.bookedCategoryPenalty;
+        scoreReasons.push(
+          `Lower priority because ${categoryLabels[vendor.category]} is already booked`,
+        );
+      }
+
+      if (preferences.skippedCategories.includes(vendor.category)) {
+        score += scoreWeights.skippedCategoryPenalty;
+        scoreReasons.push(
+          `Deprioritized because you said to skip ${categoryLabels[vendor.category]}`,
+        );
       }
 
       score += priceScore(vendor.startingPrice, budgetTarget, scoreReasons);
+      score += packageFitScore(vendor, budgetTarget, scoreReasons);
       score += locationScore(vendor, location, locationPoint, scoreReasons);
       score += qualityScore(vendor, scoreReasons);
+      score += preferenceContentScore(vendor, preferences, scoreReasons);
 
       if (signals.budgetFocused && vendor.budgetFit === "Great fit") {
-        score += 8;
+        score += scoreWeights.budgetFocusedFit;
         scoreReasons.push("Strong fit for a cost-conscious plan");
       }
 
-      if (signals.outdoor && vendor.description.toLowerCase().includes("rental")) {
-        score += 4;
+      if (
+        signals.outdoor &&
+        vendor.description.toLowerCase().includes("rental")
+      ) {
+        score += scoreWeights.outdoorRental;
         scoreReasons.push("Included rentals may reduce outdoor add-ons");
       }
 
@@ -351,8 +524,75 @@ function scoreVendors({
       };
     })
     .filter((match) => match.score >= 35)
-    .sort((a, b) => b.score - a.score || a.vendor.startingPrice - b.vendor.startingPrice)
+    .sort(
+      (a, b) =>
+        b.score - a.score || a.vendor.startingPrice - b.vendor.startingPrice,
+    )
     .slice(0, 6);
+}
+
+function packageFitScore(
+  vendor: Vendor,
+  budgetTarget: number,
+  reasons: string[],
+) {
+  if (!budgetTarget || !vendor.packages.length) return 0;
+  const fittingPackage = vendor.packages.find(
+    (vendorPackage) => vendorPackage.price <= budgetTarget,
+  );
+
+  if (!fittingPackage) return 0;
+
+  reasons.push(`${fittingPackage.name} package fits this category target`);
+  return scoreWeights.packageFit;
+}
+
+function preferenceContentScore(
+  vendor: Vendor,
+  preferences: PlanPreferences,
+  reasons: string[],
+) {
+  const vendorText = [
+    vendor.name,
+    vendor.category,
+    vendor.venueSubcategory,
+    vendor.description,
+    ...vendor.packages.flatMap((vendorPackage) => [
+      vendorPackage.name,
+      vendorPackage.includes,
+    ]),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const matchedMustHaves = preferences.mustHaveTerms.filter((term) =>
+    vendorText.includes(term),
+  );
+  const matchedAvoids = preferences.avoidTerms.filter((term) =>
+    vendorText.includes(term),
+  );
+  const matchedVibes = preferences.vibeTags.filter((term) =>
+    vendorText.includes(term),
+  );
+
+  let score = 0;
+  if (matchedMustHaves.length) {
+    score += scoreWeights.contentMatch;
+    reasons.push(`Matches ${matchedMustHaves.slice(0, 2).join(" and ")}`);
+  }
+
+  if (matchedVibes.length) {
+    score += Math.round(scoreWeights.contentMatch / 2);
+    reasons.push(`Supports your ${matchedVibes[0]} style`);
+  }
+
+  if (matchedAvoids.length) {
+    score += scoreWeights.contentAvoidPenalty;
+    reasons.push(`May conflict with your ${matchedAvoids[0]} preference`);
+  }
+
+  return score;
 }
 
 function priceScore(price: number, target: number, reasons: string[]) {
@@ -548,14 +788,21 @@ function buildFollowUps(
   bookings: VendorBooking[],
 ) {
   const questions: string[] = [];
-  if (!profile.date) questions.push("Do you already have a wedding date or season?");
+  if (!profile.date)
+    questions.push("Do you already have a wedding date or season?");
   if (!signals.foodFocused && !signals.photoFocused && !signals.musicFocused) {
-    questions.push("What matters most: food, photos, party energy, or low stress?");
+    questions.push(
+      "What matters most: food, photos, party energy, or low stress?",
+    );
   }
   if (!bookings.length) {
-    questions.push("Have you already booked a venue, or should the planner start there?");
+    questions.push(
+      "Have you already booked a venue, or should the planner start there?",
+    );
   }
-  questions.push("Are you flexible on Friday, Sunday, brunch, or off-season pricing?");
+  questions.push(
+    "Are you flexible on Friday, Sunday, brunch, or off-season pricing?",
+  );
   return questions.slice(0, 3);
 }
 

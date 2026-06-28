@@ -265,6 +265,8 @@ export default function AiPlannerPage() {
                 <p className="mt-8 rounded-xl bg-charcoal/5 px-4 py-3 text-sm text-charcoal/70">
                   Generated from: &quot;{generatedPrompt || prompt}&quot;
                 </p>
+
+                <PlannerRead preferences={plan.preferences} />
               </div>
 
               {/* alerts */}
@@ -396,6 +398,61 @@ function PlannerVendorMatch({ match }: { match: VendorMatch }) {
         </div>
       </div>
       <VendorCard vendor={match.vendor} />
+    </div>
+  );
+}
+
+function PlannerRead({ preferences }: { preferences?: AiPlan["preferences"] }) {
+  if (!preferences) return null;
+
+  const understood = [
+    ...preferences.priorityCategories.map(
+      (category) => `Prioritize ${category.toLowerCase()}`,
+    ),
+    ...preferences.vibeTags.map((tag) => `${tag} style`),
+    ...preferences.mustHaveTerms.map((term) => `Needs ${term}`),
+    ...preferences.constraints,
+  ].slice(0, 6);
+  const avoided = [
+    ...preferences.skippedCategories.map(
+      (category) => `Skip ${category.toLowerCase()}`,
+    ),
+    ...preferences.avoidTerms.map((term) => `Avoid ${term}`),
+  ].slice(0, 4);
+
+  if (!understood.length && !avoided.length) return null;
+
+  return (
+    <div className="mt-5 rounded-xl bg-ivory p-4">
+      <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage">
+        Planner read
+      </p>
+
+      {understood.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {understood.map((item) => (
+            <span
+              key={item}
+              className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-charcoal/70 ring-1 ring-champagne/30"
+            >
+              {item}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {avoided.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {avoided.map((item) => (
+            <span
+              key={item}
+              className="rounded-full bg-rose/10 px-3 py-1 text-xs font-semibold text-rose"
+            >
+              {item}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
